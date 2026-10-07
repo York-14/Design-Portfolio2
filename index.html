@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Order &amp; Chaos — Design Portfolio</title>
+<meta name="description" content="秩序と混沌のあいだで、凛と育つ。数理モデルから生成する針葉樹をキービジュアルにしたデザインポートフォリオ。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;600&family=Inter:wght@400;500&family=Noto+Sans+JP:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css">
+<script>
+  // テーマの初期化（ちらつき防止のため head で実行）
+  try { const t = localStorage.getItem("oc.theme"); if (t) document.documentElement.dataset.theme = t; } catch {}
+</script>
+</head>
+<body>
+
+<header class="site-header">
+  <a class="wordmark" href="#top">YORK<span>Design Portfolio</span></a>
+  <nav aria-label="メイン">
+    <a href="#concept">Concept</a>
+    <a href="#works">Works</a>
+    <a href="#model">Model</a>
+    <a href="#about">About</a>
+    <a href="#contact">Contact</a>
+    <button class="theme-toggle" type="button" aria-label="表示テーマを切り替え">
+      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z" fill="currentColor"/></svg>
+    </button>
+  </nav>
+</header>
+
+<main id="top">
+  <!-- ============================== Key visual ============================== -->
+  <section class="hero" aria-label="キービジュアル">
+    <canvas id="forest" aria-label="秩序と混沌のゆらぎを持って下から上へ成長する針葉樹の生成ビジュアル" role="img"></canvas>
+    <div class="hero-copy">
+      <p class="eyebrow">Design Portfolio — 2026</p>
+      <h1>秩序と混沌の<br>あいだで、<br>凛と育つ。</h1>
+      <p class="lead">Order &amp; Chaos. 黄金角と円錐の秩序に、カオス写像のゆらぎを少しだけ。<br class="pc">同じ木は二度と育たない。</p>
+    </div>
+
+    <div class="hero-ctrl" role="group" aria-label="生成のコントロール">
+      <label class="balance">
+        <span>Order</span>
+        <input id="chaos" type="range" min="0" max="1" step="0.01" value="0.32" aria-label="秩序と混沌のバランス">
+        <span>Chaos</span>
+      </label>
+      <button id="regrow" type="button">もう一度育てる</button>
+      <output id="readout" aria-live="polite"></output>
+    </div>
+    <a class="scroll-cue" href="#concept" aria-label="下へスクロール"><span></span></a>
+  </section>
+
+  <!-- ============================== Concept ============================== -->
+  <section id="concept" class="section">
+    <div class="section-head">
+      <p class="num">01</p>
+      <h2>Concept</h2>
+    </div>
+    <p class="statement">美しさは、完全な秩序にも、純粋な混沌にもない。<br>その<em>あいだ</em>に、凛とした一本が立つ。</p>
+    <div class="triad">
+      <article>
+        <h3><span>O</span>Order — 秩序</h3>
+        <p>黄金角 137.5° で回る輪生枝、円錐の包絡線、梢に向かって等比で詰まる節間。針葉樹が何千万年もかけて選んできた「規則」をそのまま式にしています。</p>
+      </article>
+      <article>
+        <h3><span>C</span>Chaos — 混沌</h3>
+        <p>枝の角度・長さ・曲がり、針葉の散らばりには、対称カオス写像の軌道をゆらぎとして注ぎます。乱数ではなく決定論的なカオス。初期値がわずかに違えば、まったく別の木になります。</p>
+      </article>
+      <article>
+        <h3><span>B</span>Beauty — 評価</h3>
+        <p>候補の木をいくつも育て、Order × Complexity × Contrast の評価関数でいちばん釣り合いの取れた一本を選びます。派手すぎず、質素すぎない「中庸」を数値で探す試みです。</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- ============================== Works ============================== -->
+  <section id="works" class="section">
+    <div class="section-head">
+      <p class="num">02</p>
+      <h2>Works</h2>
+    </div>
+    <ul class="works">
+      <li class="work">
+        <a href="https://york-14.github.io/Generative-flower-Order-Chaos/" target="_blank" rel="noopener">
+          <figure><canvas class="mini" data-kind="flower" aria-hidden="true"></canvas></figure>
+          <div class="meta">
+            <p class="tag">Generative / Research — 2026</p>
+            <h3>Generative Flower — Order × Chaos</h3>
+            <p>対称カオス写像が描く「花」を大量に探索し、美しさの評価関数と一対比較による好みの学習で解析する Web ツール。</p>
+          </div>
+        </a>
+      </li>
+      <li class="work">
+        <a href="#model">
+          <figure><canvas class="mini" data-seed="11" data-chaos="0.3" aria-hidden="true"></canvas></figure>
+          <div class="meta">
+            <p class="tag">Key Visual / Generative — 2026</p>
+            <h3>Conifer — Order &amp; Chaos</h3>
+            <p>本サイトのキービジュアル。下から上へ成長する針葉樹を、秩序の式とカオスのゆらぎで生成。</p>
+          </div>
+        </a>
+      </li>
+      <li class="work placeholder">
+        <div>
+          <figure><canvas class="mini" data-seed="503" data-chaos="0.12" aria-hidden="true"></canvas></figure>
+          <div class="meta">
+            <p class="tag">Branding — 20XX</p>
+            <h3>Project Title</h3>
+            <p>ここに作品の概要が入ります。課題・アプローチ・成果を 2〜3 行で。</p>
+          </div>
+        </div>
+      </li>
+      <li class="work placeholder">
+        <div>
+          <figure><canvas class="mini" data-seed="2711" data-chaos="0.5" aria-hidden="true"></canvas></figure>
+          <div class="meta">
+            <p class="tag">UI / UX — 20XX</p>
+            <h3>Project Title</h3>
+            <p>ここに作品の概要が入ります。課題・アプローチ・成果を 2〜3 行で。</p>
+          </div>
+        </div>
+      </li>
+      <li class="work placeholder">
+        <div>
+          <figure><canvas class="mini" data-seed="89" data-chaos="0.22" aria-hidden="true"></canvas></figure>
+          <div class="meta">
+            <p class="tag">Editorial — 20XX</p>
+            <h3>Project Title</h3>
+            <p>ここに作品の概要が入ります。課題・アプローチ・成果を 2〜3 行で。</p>
+          </div>
+        </div>
+      </li>
+      <li class="work placeholder">
+        <div>
+          <figure><canvas class="mini" data-seed="4093" data-chaos="0.68" aria-hidden="true"></canvas></figure>
+          <div class="meta">
+            <p class="tag">Data Visualization — 20XX</p>
+            <h3>Project Title</h3>
+            <p>ここに作品の概要が入ります。課題・アプローチ・成果を 2〜3 行で。</p>
+          </div>
+        </div>
+      </li>
+    </ul>
+  </section>
+
+  <!-- ============================== Model ============================== -->
+  <section id="model" class="section">
+    <div class="section-head">
+      <p class="num">03</p>
+      <h2>Model</h2>
+    </div>
+    <p class="statement small">花の数理モデルを、木の数理モデルへ。</p>
+    <p class="body-text">Generative Flower で使った対称カオス写像は、原点まわりの <i>n</i> 回回転対称を持つ<em>放射状</em>の模様を描きます。横から見ると平たい円盤にしかならず、「下から上へ育つ」形は表せません。そこで成長の骨格は新しく組み直し、写像はゆらぎの源として、評価関数は木の選別として受け継ぎました。</p>
+
+    <div class="eqs">
+      <div class="eq">
+        <p class="eq-label">Chaos source</p>
+        <p class="formula">z<sub>t+1</sub> = (λ + α|z|² + β Re z<sup>n</sup>) z + γ z̄<sup> n−1</sup></p>
+        <p>Generative Flower の写像そのもの（λ = −2.34, α = 2, β = 0.2, γ = 0.1, n = 5）。軌道 z<sub>t</sub> / R を [−1, 1] のゆらぎ ξ として取り出します。</p>
+      </div>
+      <div class="eq">
+        <p class="eq-label">Order — 節間と葉序</p>
+        <p class="formula">y<sub>k</sub> = y<sub>0</sub> + (1 − y<sub>0</sub>) · (1 − q<sup>k</sup>) / (1 − q<sup>K</sup>) + c·ξ,&nbsp;&nbsp; θ<sub>k</sub> = k · 137.5° + c·ξ</p>
+        <p>段の間隔は梢に向かって公比 q = 0.955 で詰まり、段ごとに黄金角だけ回ります。c は Order ↔ Chaos のバランス。</p>
+      </div>
+      <div class="eq">
+        <p class="eq-label">Order — 円錐と枝の形</p>
+        <p class="formula">L<sub>k</sub> = L<sub>0</sub> (1 − h<sub>k</sub>)<sup>0.92</sup> (1 + c·ξ),&nbsp;&nbsp; v(s) = L (s·tan a − g s² + u s³)</p>
+        <p>枝の長さは円錐の包絡線に従い、枝は仰角 a で出て自重 g で垂れ、先端 u でわずかに反り上がります。小枝は親枝の比で短くなる自己相似。</p>
+      </div>
+      <div class="eq">
+        <p class="eq-label">Growth</p>
+        <p class="formula">t(y) = T · y<sup>1.05</sup>,&nbsp;&nbsp; τ<sub>k</sub> ∝ √(L<sub>k</sub> / L<sub>0</sub>)</p>
+        <p>成長前線が根元から梢へ上がり、通過した段から枝が伸び始めます。下の枝ほど長く伸び続けるので、時間差がそのまま円錐の形になります。</p>
+      </div>
+      <div class="eq">
+        <p class="eq-label">Beauty</p>
+        <p class="formula">B = O · C · K</p>
+        <p>O：左右の鏡映の度合い（完全対称は退屈なので 0.7 付近が最良）。C：ボックス次元（線と面の中庸 ≈ 1.7）。K：輪郭内の余白。候補 6 本から B 最大の木を描きます。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== About ============================== -->
+  <section id="about" class="section">
+    <div class="section-head">
+      <p class="num">04</p>
+      <h2>About</h2>
+    </div>
+    <div class="about">
+      <div>
+        <p class="name">York</p>
+        <p class="role">Designer / Creative Coder</p>
+      </div>
+      <div>
+        <p class="body-text">ここに自己紹介が入ります。デザインの領域、大切にしていること、数理やコードを使う理由などを 3〜4 行で。</p>
+        <dl class="facts">
+          <div><dt>Field</dt><dd>Branding, UI/UX, Generative Design</dd></div>
+          <div><dt>Tools</dt><dd>Figma, JavaScript, Python, WebGL</dd></div>
+          <div><dt>Based in</dt><dd>Tokyo, Japan</dd></div>
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== Contact ============================== -->
+  <section id="contact" class="section contact">
+    <div class="section-head">
+      <p class="num">05</p>
+      <h2>Contact</h2>
+    </div>
+    <p class="statement small">お仕事のご相談・ご感想はこちらへ。</p>
+    <p class="links">
+      <a href="mailto:hello@example.com">hello@example.com</a>
+      <a href="https://github.com/York-14" target="_blank" rel="noopener">GitHub</a>
+    </p>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <p>© 2026 York. Key visual generated in your browser — every visit grows a different tree.</p>
+</footer>
+
+<script src="assets/js/conifer.js"></script>
+<script src="assets/js/main.js"></script>
+</body>
+</html>
