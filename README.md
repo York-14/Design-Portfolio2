@@ -1,5 +1,7 @@
 # Design-Portfolio2 — Order & Chaos
 
+**🌐 Web ページ: https://york-14.github.io/Design-Portfolio2/**
+
 数理モデルから生成する針葉樹をキービジュアルにしたデザインポートフォリオ。
 ビルド不要の静的サイトです（`index.html` をそのまま GitHub Pages で公開できます）。
 
@@ -53,3 +55,8 @@ assets/js/main.js     キービジュアル（森）・作品サムネイル・�
 
 - **Works**：York-14 の公開リポジトリから 8 作品。サムネイルは各作品の数理モデル（対称カオス写像・ロジスティック写像の分岐図・二重振り子・黄金角の葉序など）をサイトの配色でその場で描いたものです。
 - **About**：プロフィールリポジトリ [York-14/York-14](https://github.com/York-14/York-14) の内容から構成。
+
+## 公開（GitHub Pages）
+
+Settings → Pages → Build and deployment で **Deploy from a branch / `main` / `/ (root)`** を選ぶと、
+上記 URL で公開されます。
