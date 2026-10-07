@@ -17,13 +17,12 @@
 <body>
 
 <header class="site-header">
-  <a class="wordmark" href="#top">YORK<span>Design Portfolio</span></a>
+  <a class="wordmark" href="#top">York-14<span>Design Portfolio</span></a>
   <nav aria-label="メイン">
     <a href="#concept">Concept</a>
     <a href="#works">Works</a>
     <a href="#model">Model</a>
     <a href="#about">About</a>
-    <a href="#contact">Contact</a>
     <button class="theme-toggle" type="button" aria-label="表示テーマを切り替え">
       <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z" fill="currentColor"/></svg>
     </button>
@@ -35,7 +34,7 @@
   <section class="hero" aria-label="キービジュアル">
     <canvas id="forest" aria-label="秩序と混沌のゆらぎを持って下から上へ成長する針葉樹の生成ビジュアル" role="img"></canvas>
     <div class="hero-copy">
-      <p class="eyebrow">Design Portfolio — 2026</p>
+      <p class="eyebrow">York-14 — Design Portfolio 2026</p>
       <h1>秩序と混沌の<br>あいだで、<br>凛と育つ。</h1>
       <p class="lead">Order &amp; Chaos. 黄金角と円錐の秩序に、カオス写像のゆらぎを少しだけ。<br class="pc">同じ木は二度と育たない。</p>
     </div>
@@ -83,63 +82,75 @@
     </div>
     <ul class="works">
       <li class="work">
-        <a href="https://york-14.github.io/Generative-flower-Order-Chaos/" target="_blank" rel="noopener">
-          <figure><canvas class="mini" data-kind="flower" aria-hidden="true"></canvas></figure>
-          <div class="meta">
-            <p class="tag">Generative / Research — 2026</p>
-            <h3>Generative Flower — Order × Chaos</h3>
-            <p>対称カオス写像が描く「花」を大量に探索し、美しさの評価関数と一対比較による好みの学習で解析する Web ツール。</p>
-          </div>
-        </a>
+        <a class="thumb" href="https://york-14.github.io/Generative-flower-Order-Chaos/" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true"><canvas class="mini" data-kind="flower"></canvas></a>
+        <div class="meta">
+          <p class="tag">Generative / Research</p>
+          <h3><a href="https://york-14.github.io/Generative-flower-Order-Chaos/" target="_blank" rel="noopener">Generative Flower — Order × Chaos</a></h3>
+          <p>対称カオス写像が描く花を大量に探索し、Beauty = Order × Complexity × Contrast の評価関数と一対比較による好みの学習で「美しさ」を探る。2D / 3D。</p>
+          <p class="links"><a href="https://york-14.github.io/Generative-flower-Order-Chaos/" target="_blank" rel="noopener">Live ↗</a> <a href="https://github.com/York-14/Generative-flower-Order-Chaos" target="_blank" rel="noopener">GitHub ↗</a></p>
+        </div>
       </li>
       <li class="work">
-        <a href="#model">
-          <figure><canvas class="mini" data-seed="11" data-chaos="0.3" aria-hidden="true"></canvas></figure>
-          <div class="meta">
-            <p class="tag">Key Visual / Generative — 2026</p>
-            <h3>Conifer — Order &amp; Chaos</h3>
-            <p>本サイトのキービジュアル。下から上へ成長する針葉樹を、秩序の式とカオスのゆらぎで生成。</p>
-          </div>
-        </a>
-      </li>
-      <li class="work placeholder">
-        <div>
-          <figure><canvas class="mini" data-seed="503" data-chaos="0.12" aria-hidden="true"></canvas></figure>
-          <div class="meta">
-            <p class="tag">Branding — 20XX</p>
-            <h3>Project Title</h3>
-            <p>ここに作品の概要が入ります。課題・アプローチ・成果を 2〜3 行で。</p>
-          </div>
+        <a class="thumb" href="https://york-14.github.io/Generative-Flower/" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true"><canvas class="mini" data-kind="petals"></canvas></a>
+        <div class="meta">
+          <p class="tag">WebGL</p>
+          <h3><a href="https://york-14.github.io/Generative-Flower/" target="_blank" rel="noopener">咲く・散る — Generative Flower</a></h3>
+          <p>蕾が開き、満開を迎え、花びらが一枚ずつ散り、また蕾へ還る。秩序から混沌へ、再び秩序へ戻る循環をひとつの位相 φ で描く。</p>
+          <p class="links"><a href="https://york-14.github.io/Generative-Flower/" target="_blank" rel="noopener">Live ↗</a> <a href="https://github.com/York-14/Generative-Flower" target="_blank" rel="noopener">GitHub ↗</a></p>
         </div>
       </li>
-      <li class="work placeholder">
-        <div>
-          <figure><canvas class="mini" data-seed="2711" data-chaos="0.5" aria-hidden="true"></canvas></figure>
-          <div class="meta">
-            <p class="tag">UI / UX — 20XX</p>
-            <h3>Project Title</h3>
-            <p>ここに作品の概要が入ります。課題・アプローチ・成果を 2〜3 行で。</p>
-          </div>
+      <li class="work">
+        <a class="thumb" href="https://york-14.github.io/Design-Portfolio-1/ivy-order-chaos/" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true"><canvas class="mini" data-kind="ivy"></canvas></a>
+        <div class="meta">
+          <p class="tag">Generative</p>
+          <h3><a href="https://york-14.github.io/Design-Portfolio-1/ivy-order-chaos/" target="_blank" rel="noopener">Beauty — Order × Chaos</a></h3>
+          <p>蔦と葉で描く対称カオス写像。秩序と混沌が 80–120 BPM の鼓動で呼吸し続ける。</p>
+          <p class="links"><a href="https://york-14.github.io/Design-Portfolio-1/ivy-order-chaos/" target="_blank" rel="noopener">Live ↗</a> <a href="https://github.com/York-14/Design-Portfolio-1" target="_blank" rel="noopener">GitHub ↗</a></p>
         </div>
       </li>
-      <li class="work placeholder">
-        <div>
-          <figure><canvas class="mini" data-seed="89" data-chaos="0.22" aria-hidden="true"></canvas></figure>
-          <div class="meta">
-            <p class="tag">Editorial — 20XX</p>
-            <h3>Project Title</h3>
-            <p>ここに作品の概要が入ります。課題・アプローチ・成果を 2〜3 行で。</p>
-          </div>
+      <li class="work">
+        <a class="thumb" href="https://york-14.github.io/Design-portfolio/" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true"><canvas class="mini" data-kind="bifurcation"></canvas></a>
+        <div class="meta">
+          <p class="tag">Motion</p>
+          <h3><a href="https://york-14.github.io/Design-portfolio/" target="_blank" rel="noopener">ORDER × CHAOS — Generative Motion Reel</a></h3>
+          <p>これまでの作品の数式をひとつの流れに編み直した 15 秒のリール。映像も音もすべてコードで生成。</p>
+          <p class="links"><a href="https://york-14.github.io/Design-portfolio/" target="_blank" rel="noopener">Live ↗</a> <a href="https://github.com/York-14/Design-portfolio" target="_blank" rel="noopener">GitHub ↗</a></p>
         </div>
       </li>
-      <li class="work placeholder">
-        <div>
-          <figure><canvas class="mini" data-seed="4093" data-chaos="0.68" aria-hidden="true"></canvas></figure>
-          <div class="meta">
-            <p class="tag">Data Visualization — 20XX</p>
-            <h3>Project Title</h3>
-            <p>ここに作品の概要が入ります。課題・アプローチ・成果を 2〜3 行で。</p>
-          </div>
+      <li class="work">
+        <a class="thumb" href="https://double-pendulum-bay.vercel.app" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true"><canvas class="mini" data-kind="pendulum"></canvas></a>
+        <div class="meta">
+          <p class="tag">Generative / Physics</p>
+          <h3><a href="https://double-pendulum-bay.vercel.app" target="_blank" rel="noopener">Double Pendulum — Nature / Chaos / Symmetry</a></h3>
+          <p>二重振り子のカオス力学だけを源泉に、リアルタイムで生成される粒子の造形。同じ構造は二度と現れない。</p>
+          <p class="links"><a href="https://double-pendulum-bay.vercel.app" target="_blank" rel="noopener">Live ↗</a> <a href="https://github.com/York-14/Double-pendulum" target="_blank" rel="noopener">GitHub ↗</a></p>
+        </div>
+      </li>
+      <li class="work">
+        <a class="thumb" href="https://github.com/York-14/Golden-angle-new" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true"><canvas class="mini" data-kind="phyllotaxis"></canvas></a>
+        <div class="meta">
+          <p class="tag">p5.js</p>
+          <h3><a href="https://github.com/York-14/Golden-angle-new" target="_blank" rel="noopener">Golden Angle Phyllotaxis — Breathing</a></h3>
+          <p>黄金角 137.5° の葉序が呼吸する。2D の螺旋と、Fibonacci スフィアの 3D。</p>
+          <p class="links"><a href="https://github.com/York-14/Golden-angle-new" target="_blank" rel="noopener">GitHub ↗</a></p>
+        </div>
+      </li>
+      <li class="work">
+        <a class="thumb" href="https://github.com/York-14/golden-angle-drift" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true"><canvas class="mini" data-kind="drift"></canvas></a>
+        <div class="meta">
+          <p class="tag">Canvas</p>
+          <h3><a href="https://github.com/York-14/golden-angle-drift" target="_blank" rel="noopener">Phyllotaxis Chaos — golden-angle-drift</a></h3>
+          <p>黄金角の葉序に、ロジスティック写像の決定論的なゆらぎを差し込む。</p>
+          <p class="links"><a href="https://github.com/York-14/golden-angle-drift" target="_blank" rel="noopener">GitHub ↗</a></p>
+        </div>
+      </li>
+      <li class="work">
+        <a class="thumb" href="https://github.com/York-14/Daily-question" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true"><canvas class="mini" data-kind="question"></canvas></a>
+        <div class="meta">
+          <p class="tag">Web / iOS</p>
+          <h3><a href="https://github.com/York-14/Daily-question" target="_blank" rel="noopener">今日の問い — Daily Question</a></h3>
+          <p>1 日 1 つの問いを表示するシンプルなアプリ。Web 版と、Expo で開発中の iOS 版。</p>
+          <p class="links"><a href="https://github.com/York-14/Daily-question" target="_blank" rel="noopener">GitHub ↗</a> <a href="https://github.com/York-14/Daily-question-iOS" target="_blank" rel="noopener">iOS ↗</a></p>
         </div>
       </li>
     </ul>
@@ -191,36 +202,28 @@
     </div>
     <div class="about">
       <div>
-        <p class="name">York</p>
-        <p class="role">Designer / Creative Coder</p>
+        <p class="name">York-14</p>
+        <p class="role">Creator &amp; Explorer</p>
       </div>
       <div>
-        <p class="body-text">ここに自己紹介が入ります。デザインの領域、大切にしていること、数理やコードを使う理由などを 3〜4 行で。</p>
+        <p class="body-text">I explore the intersection of creative coding, generative art, perception, and digital tools. I build small experiments, visual systems, and simple digital experiences to explore how order, complexity, and beauty emerge.</p>
+        <p class="body-text">クリエイティブコーディング、ジェネラティブアート、知覚、デジタルツールが交わるところを探究しています。小さな実験や視覚のシステム、シンプルなデジタル体験をつくりながら、秩序・複雑さ・美しさがどのように立ち現れるのかを探っています。</p>
         <dl class="facts">
-          <div><dt>Field</dt><dd>Branding, UI/UX, Generative Design</dd></div>
-          <div><dt>Tools</dt><dd>Figma, JavaScript, Python, WebGL</dd></div>
-          <div><dt>Based in</dt><dd>Tokyo, Japan</dd></div>
+          <div><dt>Exploring</dt><dd>Generative Art &amp; Creative Coding</dd></div>
+          <div><dt></dt><dd>Mathematical patterns and visual systems</dd></div>
+          <div><dt></dt><dd>Perception, beauty, and complexity</dd></div>
+          <div><dt></dt><dd>Simple digital tools and experiences</dd></div>
+          <div><dt></dt><dd>AI-assisted creation</dd></div>
+          <div><dt>GitHub</dt><dd><a href="https://github.com/York-14" target="_blank" rel="noopener">github.com/York-14</a></dd></div>
         </dl>
+        <p class="motto">Intelligence is the ability to explore.<span>知能とは、探索する能力である。</span></p>
       </div>
     </div>
-  </section>
-
-  <!-- ============================== Contact ============================== -->
-  <section id="contact" class="section contact">
-    <div class="section-head">
-      <p class="num">05</p>
-      <h2>Contact</h2>
-    </div>
-    <p class="statement small">お仕事のご相談・ご感想はこちらへ。</p>
-    <p class="links">
-      <a href="mailto:hello@example.com">hello@example.com</a>
-      <a href="https://github.com/York-14" target="_blank" rel="noopener">GitHub</a>
-    </p>
   </section>
 </main>
 
 <footer class="site-footer">
-  <p>© 2026 York. Key visual generated in your browser — every visit grows a different tree.</p>
+  <p>© 2026 York-14. Key visual generated in your browser — every visit grows a different tree.</p>
 </footer>
 
 <script src="assets/js/conifer.js"></script>
