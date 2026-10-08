@@ -36,7 +36,7 @@
     <div class="hero-copy">
       <p class="eyebrow">York-14 — Design Portfolio 2026</p>
       <h1>秩序と混沌の<br>あいだで、<br>凛と育つ。</h1>
-      <p class="lead">Order &amp; Chaos. 黄金角と円錐の秩序に、カオス写像のゆらぎを。<br class="pc">80〜120 BPM の鼓動で、緊張と緩和を繰り返す。</p>
+      <p class="lead">Order &amp; Chaos. 黄金角と円錐の秩序に、カオス写像のゆらぎを。<br class="pc">80〜120 BPM の鼓動で、育ち、枯れ、散り、また育つ。</p>
     </div>
 
     <div class="hero-ctrl" role="group" aria-label="生成のコントロール">
@@ -191,6 +191,11 @@
         <p class="eq-label">Rhythm — 緊張と緩和</p>
         <p class="formula">BPM(t) = 100 − 20 cos(2πt / 24),&nbsp;&nbsp; c(t) = c<sub>0</sub> + 0.5 (τ − 0.4) + 0.16 · beat · (0.35 + 0.65 τ)</p>
         <p>テンポは 24 秒かけて 80 → 120 → 80 BPM を往復します。速くなるほど緊張 τ が高まり、木は混沌へ。遅くなるほど緩和され、秩序へ還ります。拍ごとに一瞬だけ混沌側へ振れ、ゆっくり戻る「ドクン」が重なります。木の各点は秩序の姿と混沌の姿の 2 つの座標を持ち、毎フレームその間を c で補間しています。</p>
+      </div>
+      <div class="eq">
+        <p class="eq-label">Life cycle — 変速</p>
+        <p class="formula">dL/dt = (BPM / 100)<sup>1.6</sup> · (1 + 0.55 · beat),&nbsp;&nbsp; 育つ → 呼吸 → 枯れる → 散る → 眠る</p>
+        <p>一本ずつが「生命の時計」L を持ち、その進む速さは鼓動で変わります。テンポが速いと季節は早く巡り、遅いとゆっくり。拍の瞬間には一歩ぶん押し出されます。枯れる相では梢と枝先から緑が抜けて乾いた色になり、自重で垂れ、秩序がほどけていきます。散る相では枯れた順に枝を離れ、半分は宙で風化し、残りは風に揺れながら落ちて地面に積もり、土に還ります。眠りのあいだに新しい seed の木が Beauty で選ばれ、また育ちます。遠景の木は呼吸の長さが一本ずつ違うので、森の周期は少しずつずれていきます。</p>
       </div>
       <div class="eq">
         <p class="eq-label">Beauty</p>

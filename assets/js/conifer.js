@@ -204,7 +204,8 @@
 
   // 木を点群に焼く。各点は「秩序の姿」と「混沌の姿」の 2 つの画面座標を持ち、
   // 毎フレームその間を補間するだけで木全体が Order ↔ Chaos を行き来する。
-  function bake(tree, budget) {
+  // 生成関数（yield で区切る）なので、アニメーションを止めずに少しずつ焼ける。
+  function* bakeGen(tree, budget) {
     const proj = tree.proj, N = tree.noise, segs = tree.all;
     const fog = tree.view.fog ?? 0;
     const lenOf = g => Math.hypot(g.b[0] - g.a[0], g.b[1] - g.a[1], g.b[2] - g.a[2]);
@@ -213,11 +214,14 @@
     const counts = segs.map(g => { const c = lenOf(g) * g.dens * density; const n = Math.floor(c); return n + (N.unit() < c - n ? 1 : 0); });
     const n = counts.reduce((a, b) => a + b, 0);
     const X0 = new Float32Array(n), Y0 = new Float32Array(n), X1 = new Float32Array(n), Y1 = new Float32Array(n);
-    const Wt = new Float32Array(n), B = new Float32Array(n), D = new Float32Array(n);
+    const Wt = new Float32Array(n), B = new Float32Array(n), D = new Float32Array(n), Q = new Float32Array(n);
     const pa = [0, 0, 0], pb = [0, 0, 0];
-    let k = 0;
-    segs.forEach((g, si) => {
+    const reach = tree.opt.slender;
+    let k = 0, since = 0;
+    for (let si = 0; si < segs.length; si++) {
+      const g = segs[si];
       const a0 = g.a0 || g.a, b0 = g.b0 || g.b, a1 = g.a1 || g.a, b1 = g.b1 || g.b, nl = g.needle;
+      const trunk = g.drop > 1;
       for (let i = 0; i < counts[si]; i++, k++) {
         const t = N.unit();
         const [u, v] = N.pair();
@@ -229,15 +233,22 @@
         X0[k] = pa[0]; Y0[k] = pa[1]; X1[k] = pb[0]; Y1[k] = pb[1];
         const depth = 0.62 + 0.38 * clamp(0.5 + pa[2] * 2.2, 0, 1);   // 奥の枝ほど淡く（空気遠近）
         Wt[k] = g.weight * tree.weight * depth * (1 - 0.6 * fog);
-        B[k] = tree.delay + g.t0 + t * g.dur;                    // 誕生時刻（成長）
+        B[k] = g.t0 + t * g.dur;                                 // 誕生時刻（成長）
         D[k] = g.drop;
+        // 枯れる順番 Q：梢と枝先から先に、幹と根元は最後に（幹は 2 以上の印を付け、散らない）
+        const y = g.a[1] + (g.b[1] - g.a[1]) * t;
+        const r = Math.hypot(g.a[0] + (g.b[0] - g.a[0]) * t, g.a[2] + (g.b[2] - g.a[2]) * t);
+        Q[k] = trunk ? 2 + y : clamp(0.45 * (1 - y) + 0.45 * (1 - Math.min(1, r / reach)) + 0.1 * Math.abs(u), 0, 1);
       }
-    });
-    return sortByRow({ n, X0, Y0, X1, Y1, Wt, B, D, haze: fog > 0 });
+      since += counts[si];
+      if (since > 30000) { since = 0; yield; }
+    }
+    return yield* sortByRow({ n, X0, Y0, X1, Y1, Wt, B, D, Q, haze: fog > 0 });
   }
+  function run(gen) { let r; do { r = gen.next(); } while (!r.done); return r.value; }
 
   // 点を画面の行順に並べ替える（毎フレームの加算でメモリを順に触るように。計数ソート）
-  function sortByRow(c) {
+  function* sortByRow(c) {
     const { n, Y0 } = c;
     let lo = Infinity, hi = -Infinity;
     for (let i = 0; i < n; i++) { const y = Y0[i] | 0; if (y < lo) lo = y; if (y > hi) hi = y; }
@@ -247,10 +258,12 @@
     for (let r = 1; r < R; r++) start[r] += start[r - 1];
     const idx = new Uint32Array(n);
     for (let i = 0; i < n; i++) idx[start[(Y0[i] | 0) - lo]++] = i;
-    for (const key of ["X0", "Y0", "X1", "Y1", "Wt", "B", "D"]) {
+    yield;
+    for (const key of ["X0", "Y0", "X1", "Y1", "Wt", "B", "D", "Q"]) {
       const src = c[key], dst = new Float32Array(n);
       for (let i = 0; i < n; i++) dst[i] = src[idx[i]];
       c[key] = dst;
+      yield;
     }
     return c;
   }
@@ -298,16 +311,18 @@
   }
 
   // 複数の seed を試し、Beauty 最大の木を選ぶ
-  function selectBest(opt, candidates = 6) {
+  function* selectBestGen(opt, candidates = 6) {
     let best = null;
     for (let i = 0; i < candidates; i++) {
       const seed = (opt.seed ?? 137) + i * 7919;
       const t = generate({ ...opt, seed });
       const s = evaluate(t);
       if (!best || s.B > best.score.B) best = { seed, score: s };
+      yield;
     }
     return best;
   }
+  const selectBest = (opt, candidates) => run(selectBestGen(opt, candidates));
 
   // ================================================================
   // Renderer — 複数の木を 1 枚の密度場に描き、ログ階調でトーンマップする
@@ -316,14 +331,14 @@
 
   function createScene(canvas) {
     const ctx = canvas.getContext("2d");
-    let W = 0, H = 0, hist = null, haze = null, img = null, px32 = null;
+    let W = 0, H = 0, hist = null, haze = null, dry = null, img = null;
     let clouds = [], raf = 0;
     let palette = { bg: "#f3f1ea", stops: ["#f3f1ea", "#8f9a90", "#2c3a33", "#101814"] };
-    let LUT = new Uint8ClampedArray(256 * 3), BG = [0, 0, 0];
+    let LUT = new Uint8ClampedArray(256 * 3), BG = [0, 0, 0], DRY = [156, 143, 120];
     let ref = 1;
     // トーンマップ表：密度 → 色。毎フレームの塗りを表引きだけにする
     const TN = 2048;
-    let tq = 1, tabHz = new Uint8ClampedArray(TN * 3), tabM = new Uint8ClampedArray(TN * 3), tabA = new Float32Array(TN);
+    let tq = 1, tabHz = new Uint8ClampedArray(TN * 3), tabM = new Uint8ClampedArray(TN * 3), tabA = new Float32Array(TN), tabD = new Float32Array(TN);
 
     function buildLUT() {
       const st = palette.stops.map(hex);
@@ -332,6 +347,7 @@
         for (let k = 0; k < 3; k++) LUT[i * 3 + k] = st[j][k] + f * (st[j + 1][k] - st[j][k]);
       }
       BG = hex(palette.bg);
+      DRY = hex(palette.dry || "#9c8f78");
       buildTables();
     }
     function buildTables() {
@@ -345,6 +361,7 @@
         const tm = (v * 255) | 0;
         for (let k = 0; k < 3; k++) tabM[i * 3 + k] = LUT[tm * 3 + k];
         tabA[i] = h > 0 ? Math.min(1, v * 2.2) : 0;
+        tabD[i] = h > 0 ? Math.min(1, v * 1.9) * 0.8 : 0;      // 枯れの層：乾いた木の色
       }
     }
     buildLUT();
@@ -354,6 +371,7 @@
       H = canvas.height = Math.max(1, h | 0);
       hist = new Float32Array(W * H);
       haze = new Float32Array(W * H);
+      dry = new Float32Array(W * H);
       img = ctx.createImageData(W, H);
     }
 
@@ -362,9 +380,10 @@
       const d = img.data, top = TN - 1;
       const br = BG[0], bg = BG[1], bb = BG[2];
       for (let i = 0, n = W * H; i < n; i++) {
-        const hz = haze[i], hv = hist[i], k = i << 2;
+        const hz = haze[i], hv = hist[i], dv = dry[i], k = i << 2;
         let r = br, g = bg, b = bb;
         if (hz > 0) { const j = Math.min(top, (hz * tq) | 0) * 3; r = tabHz[j]; g = tabHz[j + 1]; b = tabHz[j + 2]; }
+        if (dv > 0) { const a = tabD[Math.min(top, (dv * tq) | 0)]; r += (DRY[0] - r) * a; g += (DRY[1] - g) * a; b += (DRY[2] - b) * a; }
         if (hv > 0) {
           const j = Math.min(top, (hv * tq) | 0), a = tabA[j], j3 = j * 3;
           r += (tabM[j3] - r) * a; g += (tabM[j3 + 1] - g) * a; b += (tabM[j3 + 2] - b) * a;
@@ -374,51 +393,164 @@
       ctx.putImageData(img, 0, 0);
     }
 
-    // trees: [{ opt, view: {cx, cy, scale, rot, elev, fog}, weight, budget, delay }]
-    function setTrees(list, range = [0, 1]) {
+    // ---------------------------------------------------------------- life cycle
+    // 一本ごとに「生命の時計」L を持つ。L は鼓動に合わせた可変の速さで進み、
+    //   成長 G → 呼吸 M → 枯れる WI → 散る FA → 眠る RE → 再び成長
+    // を繰り返す。主木は眠りのあいだに新しい seed で焼き直した木に入れ替わる。
+    const LIFE = { mature: 16, wither: 5.5, fall: 5.5, rest: 1.6 };
+    let T = 0, stride = 1, jobs = [];
+
+    function makeCloud(spec, range, gen) {
+      const t = generate({ ...spec.opt, range });
+      t.view = spec.view; t.proj = makeProjector(spec.view); t.weight = spec.weight ?? 1;
+      return { tree: t, gen: gen ? bakeGen(t, spec.budget ?? 1e6) : null, pts: gen ? null : run(bakeGen(t, spec.budget ?? 1e6)) };
+    }
+
+    // trees: [{ opt, view: {cx, cy, scale, rot, elev, fog}, weight, budget, delay, mature, renew }]
+    function setTrees(list, range = [0, 1], { mature = false } = {}) {
+      jobs = [];
       clouds = list.map(spec => {
-        const t = generate({ ...spec.opt, range });
-        t.view = spec.view; t.proj = makeProjector(spec.view);
-        t.weight = spec.weight ?? 1; t.delay = spec.delay ?? 0;
-        const c = bake(t, spec.budget ?? 1e6);
-        c.end = t.delay + t.end;
-        return c;
+        const { tree, pts } = makeCloud(spec, range, false);
+        const cl = { spec, pts, view: spec.view, center: spec.opt.chaos ?? 0.32, G: tree.end, M: spec.mature ?? LIFE.mature };
+        cl.life = mature ? cl.G + 0.5 : -(spec.delay ?? 0);
+        return cl;
       });
       clouds.range = range;
       // トーンマップの基準：画素あたりの期待密度から決める（成長中に明るさが跳ねないように）
       const budget = list.reduce((s, x) => s + (x.budget ?? 1e6) * (x.weight ?? 1), 0);
       ref = Math.max(4, (budget / (W * H)) * 90);
       buildTables();
-      return clouds.reduce((m, c) => Math.max(m, c.end), 0);   // 成長が終わる時刻
+      return clouds.reduce((m, c) => Math.max(m, c.G + (c.spec.delay ?? 0)), 0);   // 最初の成長が終わる時刻
     }
 
-    // 時刻 T（成長）と混沌度 c で 1 フレーム描く。stride > 1 は間引き（重みを掛けて階調は保つ）
-    let stride = 1;
-    function frame(T, c) {
-      hist.fill(0); haze.fill(0);
-      const [lo, hi] = clouds.range || [0, 1];
-      const k = clamp((c - lo) / (hi - lo), 0, 1), dropT = c * c * 0.35;
+    function phaseOf(cl) {
+      let L = cl.life;
+      if (L < cl.G) return ["grow", Math.max(0, L)];
+      L -= cl.G; if (L < cl.M) return ["breathe", L];
+      L -= cl.M; if (L < LIFE.wither) return ["wither", L / LIFE.wither];
+      L -= LIFE.wither; if (L < LIFE.fall) return ["fall", L / LIFE.fall];
+      L -= LIFE.fall; return ["rest", L / LIFE.rest];
+    }
+
+    // 生命の時計を進める。rate は鼓動から決まる可変の速さ
+    function advance(dt, rate) {
       for (const cl of clouds) {
-        const { n, X0, Y0, X1, Y1, Wt, B, D } = cl, F = cl.haze ? haze : hist;
-        for (let i = 0; i < n; i += stride) {
-          const dd = D[i] - dropT;
-          if (B[i] > T || dd < 0) continue;
-          const px = (X0[i] + (X1[i] - X0[i]) * k) | 0, py = (Y0[i] + (Y1[i] - Y0[i]) * k) | 0;
-          if (px < 0 || py < 0 || px >= W || py >= H) continue;
-          F[py * W + px] += Wt[i] * stride * (dd < 0.04 ? dd * 25 : 1);   // 欠ける枝は溶けるように消える
+        cl.life += dt * rate;
+        const [ph, x] = phaseOf(cl);
+        // 枯れ始めたら、次の木を少しずつ焼き始める（主木のみ）
+        if (ph === "wither" && !cl.job && cl.spec.renew) {
+          cl.job = (function* () {
+            const spec = yield* cl.spec.renew();
+            const { tree, gen } = makeCloud(spec, clouds.range, true);
+            const pts = yield* gen;
+            return { spec, pts, G: tree.end };
+          })();
+          jobs.push(cl.job);
         }
+        if (ph === "rest" && x >= 1) {
+          if (cl.job) {
+            if (!cl.next) { cl.life = cl.G + cl.M + LIFE.wither + LIFE.fall + LIFE.rest; continue; } // 焼き上がるまで眠る
+            Object.assign(cl, cl.next, { center: cl.next.spec.opt.chaos ?? cl.center }); cl.job = cl.next = null;
+            cl.onRenew && cl.onRenew(cl.spec);
+          }
+          cl.life = 0;
+        }
+      }
+      // 焼き上げは 1 フレームあたり数ミリ秒だけ
+      const t0 = performance.now();
+      while (jobs.length && performance.now() - t0 < 5) {
+        const job = jobs[0], r = job.next();
+        if (r.done) { jobs.shift(); const cl = clouds.find(c => c.job === job); if (cl) cl.next = r.value; }
+      }
+    }
+
+    const fract = x => x - Math.floor(x);
+    const ease = x => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
+
+    // 1 フレーム描く。c は呼吸の混沌度（中心からのずれ dc として各木に足す）
+    function frame(dc) {
+      hist.fill(0); haze.fill(0); dry.fill(0);
+      const [lo, hi] = clouds.range || [0, 1];
+      for (const cl of clouds) {
+        const { n, X0, Y0, X1, Y1, Wt, B, D, Q } = cl.pts;
+        const F = cl.pts.haze ? haze : hist;
+        const [ph, x] = phaseOf(cl);
+        const sc = cl.view.scale, ground = cl.view.cy;
+        const dk = cl.pts.haze ? 0.4 : 0.9;                      // 枯れの層の濃さ（遠景は淡く）
+        let c = cl.center;
+        if (ph === "breathe") c = clamp(cl.center + dc * ease(x / 3), 0, 1);      // 3 秒かけて鼓動が立ち上がる
+        else if (ph === "wither") c = cl.center + (0.85 - cl.center) * ease(x);   // 枯れるほど秩序がほどける
+        else if (ph === "fall" || ph === "rest") c = 0.85;
+        const k = clamp((c - lo) / (hi - lo), 0, 1);
+        const dropT = (ph === "grow" || ph === "breathe" ? c * c : cl.center * cl.center) * 0.35;
+
+        if (ph === "grow" || ph === "breathe") {
+          const Tg = ph === "grow" ? x : 1e9;
+          for (let i = 0; i < n; i += stride) {
+            const dd = D[i] - dropT;
+            if (B[i] > Tg || dd < 0) continue;
+            const px = (X0[i] + (X1[i] - X0[i]) * k) | 0, py = (Y0[i] + (Y1[i] - Y0[i]) * k) | 0;
+            if (px < 0 || py < 0 || px >= W || py >= H) continue;
+            F[py * W + px] += Wt[i] * stride * (dd < 0.04 ? dd * 25 : 1);   // 欠ける枝は溶けるように消える
+          }
+        } else if (ph === "wither") {
+          // 枯れる：梢と枝先から緑が抜けて乾いた色（枯れの層）へ移り、自重で垂れる
+          for (let i = 0; i < n; i += stride) {
+            if (D[i] < dropT) continue;
+            const q = Q[i] >= 2 ? 0.9 : Q[i];
+            const wf = ease((x - q * 0.7) / 0.3);
+            const px = (X0[i] + (X1[i] - X0[i]) * k) | 0;
+            const py = (Y0[i] + (Y1[i] - Y0[i]) * k + (Q[i] >= 2 ? 0 : wf * sc * 0.02)) | 0;
+            if (px < 0 || py < 0 || px >= W || py >= H) continue;
+            const w = Wt[i] * stride, j = py * W + px;
+            F[j] += w * (1 - wf);
+            dry[j] += w * wf * dk;
+          }
+        } else if (ph === "fall") {
+          // 散る：枯れた順に枝を離れ、風に揺れながら落ち、地面に積もって消える
+          const litter = 1 - ease((x - 0.8) / 0.2);
+          for (let i = 0; i < n; i += stride) {
+            if (D[i] < dropT) continue;
+            const h1 = fract(i * 0.6180339887), h2 = fract(i * 0.7548776662);
+            let px = X0[i] + (X1[i] - X0[i]) * k, py = Y0[i] + (Y1[i] - Y0[i]) * k, w = Wt[i] * stride * dk;
+            if (Q[i] >= 2) {
+              w *= 1 - ease((x - 0.55) / 0.4);                 // 幹は最後まで立ち、やがて消える
+            } else {
+              py += sc * 0.02;
+              const tf = (x - (Q[i] * 0.5 + h1 * 0.4)) * LIFE.fall;   // 枝を離れてからの時間（ばらばらに離れる）
+              if (tf > 0) {
+                if (h2 > 0.42) {
+                  w *= 1 - Math.min(1, tf * 1.4);                // 半分ほどは宙で風化して消える
+                  py += sc * 0.02 * tf;
+                } else {
+                  // 残りは風に流され、揺れながら落ちる
+                  w *= 0.85;
+                  px += sc * ((0.02 + 0.08 * h1) * tf + 0.02 * Math.sin(4 * tf + 6.28 * h2));
+                  py += sc * (0.05 + 0.1 * h2) * tf + sc * 0.05 * tf * tf;
+                  if (py > ground - h1 * 3) { py = ground - h1 * 3; w *= litter; }   // 地面に積もる
+                }
+              }
+            }
+            px |= 0; py |= 0;
+            if (w <= 0 || px < 0 || py < 0 || px >= W || py >= H) continue;
+            dry[py * W + px] += w;
+          }
+        }
+        // rest：何も描かない（土に還る）
       }
       paint();
     }
 
-    // 再生：clock(T) が混沌度 c を返す。from 秒から再開できる。止めるときは stop()
-    function play(clock, from = 0) {
+    // 再生：clock(T) が { dc, rate } を返す（dc：混沌度の揺れ、rate：生命の時計の速さ）
+    function play(clock) {
       cancelAnimationFrame(raf);
-      const t0 = performance.now() - from * 1000;
-      let cost = 16;
+      let last = performance.now(), cost = 16;
       const loop = now => {
-        const T = (now - t0) / 1000;
-        frame(T, clock(T));
+        const dt = Math.min(0.05, (now - last) / 1000); last = now;
+        T += dt;
+        const { dc, rate } = clock(T);
+        advance(dt, rate);
+        frame(dc);
         // 描画が重い端末では点を間引いて滑らかさを優先する
         cost = cost * 0.9 + (performance.now() - now) * 0.1;
         if (cost > 22 && stride < 3) { stride++; cost = 16; } else if (cost < 7 && stride > 1) { stride--; cost = 16; }
@@ -427,13 +559,16 @@
       raf = requestAnimationFrame(loop);
     }
     function stop() { cancelAnimationFrame(raf); raf = 0; }
+    // 静止画：呼吸の中心で、成長しきった姿
+    function still() { stop(); for (const cl of clouds) cl.life = cl.G + 0.01; stride = 1; frame(0); }
+    const status = () => { const cl = clouds[clouds.length - 1]; return cl ? phaseOf(cl)[0] : ""; };
 
     function setPalette(p) { palette = p; buildLUT(); paint(); }
 
     // 任意の点群を描く（作品サムネイルの花など）。fn(hist, W, H) が基準密度を返す
-    function draw(fn) { stop(); clouds = []; hist.fill(0); haze.fill(0); ref = fn(hist, W, H); buildTables(); paint(); }
+    function draw(fn) { stop(); clouds = []; hist.fill(0); haze.fill(0); dry.fill(0); ref = fn(hist, W, H); buildTables(); paint(); }
 
-    return { resize, setTrees, frame, play, stop, setPalette, paint, draw, get playing() { return raf !== 0; } };
+    return { resize, setTrees, frame, play, stop, still, status, setPalette, paint, draw, get clouds() { return clouds; } };
   }
 
   // ================================================================
@@ -453,5 +588,5 @@
     return { bpm, tension, beat, phase };
   }
 
-  window.Conifer = { generate, evaluate, selectBest, createScene, pulse, IconChaos, DEFAULTS };
+  window.Conifer = { generate, evaluate, selectBest, selectBestGen, createScene, pulse, IconChaos, DEFAULTS };
 })();
