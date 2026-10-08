@@ -26,7 +26,8 @@
   const ICON = { lam: -2.34, alpha: 2.0, beta: 0.2, gamma: 0.1, omega: 0, n: 5 }; // "Starfish"
 
   function IconChaos(seed, q = ICON) {
-    let x = 0.01 + (seed % 9973) * 1.3e-6, y = 0.003 + (seed % 7919) * 0.7e-6, R = 0;
+    const h = splitmix32(seed ^ 0x5eed1c0);
+    let x = 0.01 + h() * 0.01, y = 0.003 + h() * 0.01, R = 0;
     let nx = 0, ny = 0;
     function step() {
       const zz = x * x + y * y;
@@ -39,7 +40,7 @@
       x = nx; y = ny;
     }
     for (let i = 0; i < 3000; i++) { step(); if (i > 500) R = Math.max(R, Math.hypot(x, y)); }
-    for (let i = 0, m = seed % 1009; i < m; i++) step();
+    for (let i = 0, m = Math.floor(h() * 1009); i < m; i++) step();
     let flip = false;
     return {
       // 構造用：[-1, 1] のゆらぎ（数ステップ空けて相関を切る）
@@ -48,6 +49,43 @@
       pair() { step(); return [x / R, y / R]; },
       // [0, 1) の一様化（角度を n 倍して端数を取る）
       unit() { step(); const a = Math.atan2(y, x) / (2 * Math.PI) * 7.0 + 7; return a - Math.floor(a); },
+    };
+  }
+
+  // ================================================================
+  // Seed → Genome
+  //   32 bit の seed を splitmix32 で展開し、木の「遺伝子」を決める。
+  //   同じ seed からは、枝の本数も葉の数も向きも、まったく同じ木が育つ。
+  // ================================================================
+  function splitmix32(a) {
+    a >>>= 0;
+    return () => {
+      a = (a + 0x9e3779b9) | 0;
+      let t = a ^ (a >>> 16); t = Math.imul(t, 0x21f0aaad);
+      t ^= t >>> 15; t = Math.imul(t, 0x735a2d97);
+      return ((t ^ (t >>> 15)) >>> 0) / 4294967296;
+    };
+  }
+  const hash32 = (a, i) => Math.floor(splitmix32((a ^ Math.imul(i + 1, 0x85ebca6b)) >>> 0)() * 4294967296) >>> 0;
+  const randomSeed = () => {
+    try { return crypto.getRandomValues(new Uint32Array(1))[0]; } catch { return Math.floor(Math.random() * 4294967296) >>> 0; }
+  };
+  const seedHex = s => "0x" + (s >>> 0).toString(16).toUpperCase().padStart(8, "0");
+
+  // 葉序：Fibonacci 比 F(k)/F(k+2)（2/5, 3/8, 5/13, 8/21, 13/34 → 黄金角 137.5° に収束）
+  const PHYLLO = [[2, 5], [3, 8], [5, 13], [8, 21], [13, 34]];
+  function genome(seed) {
+    const r = splitmix32(seed);
+    const [p, q] = PHYLLO[Math.floor(r() * PHYLLO.length)];
+    const leafLen = 0.011 + 0.006 * r();
+    return {
+      whorl: 4 + Math.floor(r() * 4),        // 1 段の枝数 n = 4〜7
+      tiers: 22 + Math.floor(r() * 9),       // 段数 22〜30
+      slender: 0.2 + 0.05 * r(),             // 細さ
+      phyllo: [p, q],                        // 葉序（針葉が小枝を巡る回転 = 2π·p/q）
+      leafAngle: (40 + 25 * r()) * Math.PI / 180, // 針葉が小枝となす角 α0
+      leafLen,                               // 針葉の長さ λ
+      leafGap: leafLen * (0.04 + 0.025 * r()), // 針葉の間隔 Δ（トウヒでは長さの 1/20 前後）
     };
   }
 
@@ -67,7 +105,8 @@
   // 構造（枝の本数・小枝の数）は中心の混沌度 o.chaos で固定し、連続量（角度・長さ・曲がり）だけを
   // 任意の混沌度 C で組み直せるようにする。同じゆらぎ列を再生するので、線分は C によらず 1 対 1 に対応する。
   function generate(opt = {}) {
-    const o = { ...DEFAULTS, ...opt };
+    const gnm = genome(opt.seed ?? DEFAULTS.seed);
+    const o = { ...DEFAULTS, whorl: gnm.whorl, tiers: gnm.tiers, slender: gnm.slender, ...opt, genome: gnm };
     const Cs = clamp(o.chaos, 0, 1);
     const N = IconChaos(o.seed);
     const tape = [];
@@ -205,45 +244,93 @@
   // 木を点群に焼く。各点は「秩序の姿」と「混沌の姿」の 2 つの画面座標を持ち、
   // 毎フレームその間を補間するだけで木全体が Order ↔ Chaos を行き来する。
   // 生成関数（yield で区切る）なので、アニメーションを止めずに少しずつ焼ける。
+  // 葉（針葉）は数理モデルで置く：
+  //   本数   N = Σ ⌊ℓ·ρ / Δ⌋         （小枝の長さ ℓ、密度 ρ、間隔 Δ）
+  //   向き   d_k = cos α_k · T + sin α_k · (cos ψ_k · N₁ + sin ψ_k · N₂) + 上向きの癖
+  //          ψ_k = 2π·k·p/q + c·ξ（Fibonacci 葉序）、α_k = α0 + 0.35·c·ξ
+  //   各点は秩序の姿（c = 0）と混沌の姿（c = 1）の 2 つの座標を持つ
   function* bakeGen(tree, budget) {
-    const proj = tree.proj, N = tree.noise, segs = tree.all;
+    const proj = tree.proj, N = tree.noise, segs = tree.all, G = tree.opt.genome;
     const fog = tree.view.fog ?? 0;
+    const [lo, hi] = tree.opt.range || [tree.opt.chaos, tree.opt.chaos];
     const lenOf = g => Math.hypot(g.b[0] - g.a[0], g.b[1] - g.a[1], g.b[2] - g.a[2]);
-    const total = segs.reduce((s, g) => s + lenOf(g) * g.dens, 0);
-    const density = budget / total;
-    const counts = segs.map(g => { const c = lenOf(g) * g.dens * density; const n = Math.floor(c); return n + (N.unit() < c - n ? 1 : 0); });
-    const n = counts.reduce((a, b) => a + b, 0);
+    // 幹の点（樹皮）と葉の本数
+    let trunkLen = 0, leaves = 0;
+    const leafCount = segs.map(g => {
+      if (g.drop > 1) { trunkLen += lenOf(g) * g.dens; return 0; }
+      const k = Math.floor((lenOf(g) * g.dens) / G.leafGap); leaves += k; return k;
+    });
+    const trunkPts = Math.round(budget * 0.025);
+    const P = clamp(Math.round((budget - trunkPts) / Math.max(1, leaves)), 3, 12); // 1 本の葉を何点で描くか
+    const trunkCount = segs.map(g => (g.drop > 1 ? Math.round((lenOf(g) * g.dens / trunkLen) * trunkPts) : 0));
+    const n = trunkCount.reduce((a, b) => a + b, 0) + leaves * P;
     const X0 = new Float32Array(n), Y0 = new Float32Array(n), X1 = new Float32Array(n), Y1 = new Float32Array(n);
     const Wt = new Float32Array(n), B = new Float32Array(n), D = new Float32Array(n), Q = new Float32Array(n);
     const pa = [0, 0, 0], pb = [0, 0, 0];
-    const reach = tree.opt.slender;
-    let k = 0, since = 0;
+    const reach = tree.opt.slender, turn = (2 * Math.PI * G.phyllo[0]) / G.phyllo[1];
+    const depthOf = z => 0.62 + 0.38 * clamp(0.5 + z * 2.2, 0, 1);   // 奥の枝ほど淡く（空気遠近）
+    const frameOf = (a, b) => {                                // 小枝の局所座標 T, N₁, N₂
+      const T = norm(sub(b, a));
+      let N1 = [T[2], 0, -T[0]]; if (Math.hypot(N1[0], N1[2]) < 1e-6) N1 = [1, 0, 0];
+      N1 = norm(N1);
+      const N2 = [T[1] * N1[2] - T[2] * N1[1], T[2] * N1[0] - T[0] * N1[2], T[0] * N1[1] - T[1] * N1[0]];
+      return [T, N1, N2];
+    };
+    let k = 0, since = 0, leafIndex = 0;
+    const put = (g, t, P0, P1, w, q) => {
+      proj(P0[0], P0[1], P0[2], pa); proj(P1[0], P1[1], P1[2], pb);
+      X0[k] = pa[0]; Y0[k] = pa[1]; X1[k] = pb[0]; Y1[k] = pb[1];
+      Wt[k] = w * depthOf(pa[2]); B[k] = g.t0 + t * g.dur; D[k] = g.drop; Q[k] = q; k++;
+    };
     for (let si = 0; si < segs.length; si++) {
       const g = segs[si];
-      const a0 = g.a0 || g.a, b0 = g.b0 || g.b, a1 = g.a1 || g.a, b1 = g.b1 || g.b, nl = g.needle;
-      const trunk = g.drop > 1;
-      for (let i = 0; i < counts[si]; i++, k++) {
-        const t = N.unit();
-        const [u, v] = N.pair();
-        // 針葉：枝から放射状に散る（距離は |u|、方向は v）
-        const rr = nl * Math.abs(u), ang = v * Math.PI;
-        const ox = rr * Math.cos(ang), oy = rr * Math.sin(ang) * 0.75 - rr * 0.25, oz = rr * Math.sin(ang * 1.7);
-        proj(a0[0] + (b0[0] - a0[0]) * t + ox, a0[1] + (b0[1] - a0[1]) * t + oy, a0[2] + (b0[2] - a0[2]) * t + oz, pa);
-        proj(a1[0] + (b1[0] - a1[0]) * t + ox, a1[1] + (b1[1] - a1[1]) * t + oy, a1[2] + (b1[2] - a1[2]) * t + oz, pb);
-        X0[k] = pa[0]; Y0[k] = pa[1]; X1[k] = pb[0]; Y1[k] = pb[1];
-        const depth = 0.62 + 0.38 * clamp(0.5 + pa[2] * 2.2, 0, 1);   // 奥の枝ほど淡く（空気遠近）
-        Wt[k] = g.weight * tree.weight * depth * (1 - 0.6 * fog);
-        B[k] = g.t0 + t * g.dur;                                 // 誕生時刻（成長）
-        D[k] = g.drop;
-        // 枯れる順番 Q：梢と枝先から先に、幹と根元は最後に（幹は 2 以上の印を付け、散らない）
-        const y = g.a[1] + (g.b[1] - g.a[1]) * t;
-        const r = Math.hypot(g.a[0] + (g.b[0] - g.a[0]) * t, g.a[2] + (g.b[2] - g.a[2]) * t);
-        Q[k] = trunk ? 2 + y : clamp(0.45 * (1 - y) + 0.45 * (1 - Math.min(1, r / reach)) + 0.1 * Math.abs(u), 0, 1);
+      const a0 = g.a0 || g.a, b0 = g.b0 || g.b, a1 = g.a1 || g.a, b1 = g.b1 || g.b;
+      const w = g.weight * tree.weight * (1 - 0.6 * fog);
+      if (g.drop > 1) {
+        // 幹：樹皮のざらつき
+        for (let i = 0; i < trunkCount[si]; i++) {
+          const t = N.unit(), [u, v] = N.pair(), rr = g.needle * Math.abs(u), ang = v * Math.PI;
+          const o = [rr * Math.cos(ang), rr * Math.sin(ang) * 0.75, rr * Math.sin(ang * 1.7)];
+          const at = (a, b) => [a[0] + (b[0] - a[0]) * t + o[0], a[1] + (b[1] - a[1]) * t + o[1], a[2] + (b[2] - a[2]) * t + o[2]];
+          put(g, t, at(a0, b0), at(a1, b1), w, 2 + g.a[1] + (g.b[1] - g.a[1]) * t);
+        }
+      } else {
+        const F0 = frameOf(a0, b0), F1 = frameOf(a1, b1);
+        const ell = G.leafLen * (g.needle / 0.014);             // 葉の長さ（小枝の太さに比例）
+        for (let i = 0; i < leafCount[si]; i++, leafIndex++) {
+          const [xs, xa] = N.pair();                             // ゆらぎ ξ（カオス写像の軌道）
+          const t = (i + 0.5 + 0.3 * xs * hi) / leafCount[si];
+          const psi = leafIndex * turn, al = G.leafAngle;
+          // 秩序の姿と混沌の姿で、ゆらぎの効き方だけが違う
+          const dirOf = (F, c) => {
+            const p = psi + c * xs * 0.9, a = al + 0.35 * c * xa;
+            const ca = Math.cos(a), sa = Math.sin(a), cp = Math.cos(p), sp = Math.sin(p);
+            return norm([
+              ca * F[0][0] + sa * (cp * F[1][0] + sp * F[2][0]),
+              ca * F[0][1] + sa * (cp * F[1][1] + sp * F[2][1]) + 0.25,  // 針葉は光へ少し上向く
+              ca * F[0][2] + sa * (cp * F[1][2] + sp * F[2][2]),
+            ]);
+          };
+          const d0 = dirOf(F0, lo), d1 = dirOf(F1, hi);
+          const base0 = [a0[0] + (b0[0] - a0[0]) * t, a0[1] + (b0[1] - a0[1]) * t, a0[2] + (b0[2] - a0[2]) * t];
+          const base1 = [a1[0] + (b1[0] - a1[0]) * t, a1[1] + (b1[1] - a1[1]) * t, a1[2] + (b1[2] - a1[2]) * t];
+          // 枯れる順番 Q：梢と枝先から先に
+          const y = g.a[1] + (g.b[1] - g.a[1]) * t;
+          const r = Math.hypot(g.a[0] + (g.b[0] - g.a[0]) * t, g.a[2] + (g.b[2] - g.a[2]) * t);
+          const q = clamp(0.45 * (1 - y) + 0.45 * (1 - Math.min(1, r / reach)) + 0.1 * Math.abs(xa), 0, 1);
+          for (let j = 0; j < P; j++) {
+            const u = ell * ((j + 0.5) / P);
+            put(g, t, [base0[0] + d0[0] * u, base0[1] + d0[1] * u, base0[2] + d0[2] * u],
+                      [base1[0] + d1[0] * u, base1[1] + d1[1] * u, base1[2] + d1[2] * u], w, q);
+          }
+        }
       }
-      since += counts[si];
+      since += leafCount[si] * P + trunkCount[si];
       if (since > 30000) { since = 0; yield; }
     }
-    return yield* sortByRow({ n, X0, Y0, X1, Y1, Wt, B, D, Q, haze: fog > 0 });
+    const c = yield* sortByRow({ n: k, X0, Y0, X1, Y1, Wt, B, D, Q, haze: fog > 0 });
+    c.leaves = leaves; c.perLeaf = P;
+    return c;
   }
   function run(gen) { let r; do { r = gen.next(); } while (!r.done); return r.value; }
 
@@ -313,8 +400,8 @@
   // 複数の seed を試し、Beauty 最大の木を選ぶ
   function* selectBestGen(opt, candidates = 6) {
     let best = null;
-    for (let i = 0; i < candidates; i++) {
-      const seed = (opt.seed ?? 137) + i * 7919;
+    for (let i = 0; i < (opt.exact ? 1 : candidates); i++) {
+      const seed = i === 0 && opt.exact ? opt.seed >>> 0 : hash32(opt.seed ?? 137, i);
       const t = generate({ ...opt, seed });
       const s = evaluate(t);
       if (!best || s.B > best.score.B) best = { seed, score: s };
@@ -588,5 +675,5 @@
     return { bpm, tension, beat, phase };
   }
 
-  window.Conifer = { generate, evaluate, selectBest, selectBestGen, createScene, pulse, IconChaos, DEFAULTS };
+  window.Conifer = { generate, genome, randomSeed, seedHex, evaluate, selectBest, selectBestGen, createScene, pulse, IconChaos, DEFAULTS };
 })();

@@ -47,7 +47,8 @@
       </label>
       <button id="regrow" type="button">もう一度育てる</button>
       <button id="pause" type="button" aria-pressed="false">止める</button>
-      <p id="readout"><span id="beat" aria-hidden="true"></span><span id="bpm">growing</span><span id="score"></span></p>
+      <p id="readout"><span id="beat" aria-hidden="true"></span><span id="bpm">growing</span></p>
+      <p id="dna"><span class="k">SEED</span><a id="seed" href="#"></a><span id="genome"></span><span id="score"></span></p>
     </div>
     <a class="scroll-cue" href="#concept" aria-label="下へスクロール"><span></span></a>
   </section>
@@ -168,9 +169,19 @@
 
     <div class="eqs">
       <div class="eq">
+        <p class="eq-label">Seed → Genome</p>
+        <p class="formula">seed ∈ [0, 2<sup>32</sup>) → splitmix32 → (n, K, L<sub>0</sub>, p/q, α<sub>0</sub>, λ, Δ)</p>
+        <p>木が生まれるたびに 32 bit の seed をつくり、画面に表示します。seed をハッシュで展開して、1 段の枝数 n（4〜7）、段数 K（22〜30）、細さ L<sub>0</sub>、葉序 p/q、葉角 α<sub>0</sub>（40〜65°）、葉の長さ λ と間隔 Δ を決めます。カオス写像の初期値も seed から決まるので、同じ seed からはまったく同じ木が育ちます（表示された seed をクリックすると、その木を再現する URL になります）。</p>
+      </div>
+      <div class="eq">
+        <p class="eq-label">Leaves — 葉の数と向き</p>
+        <p class="formula">N = Σ ⌊ℓ·ρ / Δ⌋,&nbsp;&nbsp; d<sub>k</sub> = cos α<sub>k</sub> T + sin α<sub>k</sub> (cos ψ<sub>k</sub> N<sub>1</sub> + sin ψ<sub>k</sub> N<sub>2</sub>),&nbsp;&nbsp; ψ<sub>k</sub> = 2π k · p/q + c·ξ</p>
+        <p>葉の本数 N は、小枝の長さ ℓ を間隔 Δ で割って数えます。k 番目の葉は小枝の向き T のまわりを、Fibonacci 比 p/q（2/5, 3/8, 5/13, 8/21, 13/34 — 黄金角に収束する葉序）ずつ回りながら、小枝と角 α で開きます。混沌度 c が上がるほど、カオス写像のゆらぎ ξ が葉の回転と開きを乱します。</p>
+      </div>
+      <div class="eq">
         <p class="eq-label">Chaos source</p>
         <p class="formula">z<sub>t+1</sub> = (λ + α|z|² + β Re z<sup>n</sup>) z + γ z̄<sup> n−1</sup></p>
-        <p>Generative Flower の写像そのもの（λ = −2.34, α = 2, β = 0.2, γ = 0.1, n = 5）。軌道 z<sub>t</sub> / R を [−1, 1] のゆらぎ ξ として取り出します。</p>
+        <p>Generative Flower の写像そのもの（λ = −2.34, α = 2, β = 0.2, γ = 0.1, n = 5）。初期値 z<sub>0</sub> を seed から決め、軌道 z<sub>t</sub> / R を [−1, 1] のゆらぎ ξ として取り出します。</p>
       </div>
       <div class="eq">
         <p class="eq-label">Order — 節間と葉序</p>

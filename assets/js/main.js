@@ -43,7 +43,9 @@
   const hero = Conifer.createScene(canvas);
   hero.setPalette(palette());
   scenes.push(hero);
-  let seed = 1 + Math.floor(Math.random() * 9000);
+  // 木ごとの seed（32 bit）。?seed=0x… を付けると、その木をそのまま再現する
+  const urlSeed = (() => { try { const v = new URLSearchParams(location.search).get("seed"); return v ? parseInt(v, v.startsWith("0x") ? 16 : 10) >>> 0 : null; } catch { return null; } })();
+  let seed = urlSeed ?? Conifer.randomSeed(), exact = urlSeed != null;
   let best = null;
 
   function heroTrees(W, H) {
@@ -55,7 +57,7 @@
       scale: H * (wide ? 0.8 : 0.6),
     };
     const px = W * H;
-    best = Conifer.selectBest({ seed, chaos });
+    best = Conifer.selectBest({ seed, chaos, exact });
     const list = [];
     // 遠景の森：小さく、淡く、少し早く育つ
     const R = rng(seed * 31 + 7);
@@ -67,7 +69,7 @@
     for (const { depth, slot } of far) {
       const k = 0.22 + 0.38 * depth;                               // 近いほど大きい
       list.push({
-        opt: { seed: seed * 13 + Math.round(slot * 997), chaos, growTime: 4.2 + R() * 1.6, tiers: 20 },
+        opt: { seed: (Math.imul(seed, 13) + Math.round(slot * 997)) >>> 0, chaos, growTime: 4.2 + R() * 1.6, tiers: 20 },
         view: {
           cx: W * (x0 + (1.04 - x0) * slot), cy: main.cy - H * 0.05 * (1 - depth),
           scale: main.scale * k, rot: R() * 6.28, fog: 0.78 - 0.4 * depth,
@@ -80,13 +82,12 @@
       opt: { seed: best.seed, chaos },
       view: { ...main, rot: 0 },
       weight: 1, budget: px * 0.85, delay: 0, mature: 16,
-      meta: { no: seed, score: best.score },
+      meta: { seed: best.seed, score: best.score },
     };
     // 散って眠るたびに、新しい seed の木が育つ（Beauty で選び直す）
     mainSpec.renew = function* () {
-      const no = 1 + Math.floor(Math.random() * 9000);
-      const b = yield* Conifer.selectBestGen({ seed: no, chaos: +slider.value });
-      return { ...mainSpec, opt: { seed: b.seed, chaos: +slider.value }, meta: { no, score: b.score }, renew: mainSpec.renew };
+      const b = yield* Conifer.selectBestGen({ seed: Conifer.randomSeed(), chaos: +slider.value });
+      return { ...mainSpec, opt: { seed: b.seed, chaos: +slider.value }, meta: { seed: b.seed, score: b.score }, renew: mainSpec.renew };
     };
     list.push(mainSpec);
     return list;
@@ -95,6 +96,7 @@
   // ---- 鼓動：80 ↔ 120 BPM の可変テンポで、緊張（混沌）と緩和（秩序）を繰り返す ----
   //   dc   … 呼吸の混沌度の揺れ（緊張で混沌へ、緩和で秩序へ、拍ごとに一瞬振れる）
   //   rate … 生命の時計の速さ（テンポが速いほど、拍の瞬間ほど速く進む＝変速）
+  const seedEl = $("#seed"), genomeEl = $("#genome");
   const bpmEl = $("#bpm"), beatEl = $("#beat"), scoreEl = $("#score"), pauseBtn = $("#pause");
   const PHASE = { grow: "育つ", breathe: "呼吸", wither: "枯れる", fall: "散る", rest: "眠る" };
   let paused = false, visible = true, lastText = -1, shown = null;
@@ -117,8 +119,12 @@
     const cl = hero.clouds[hero.clouds.length - 1];
     if (!cl || cl.spec.meta === shown) return;
     shown = cl.spec.meta;
-    const s = shown.score, f = v => v.toFixed(2);
-    scoreEl.textContent = `No.${String(shown.no).padStart(4, "0")}  O ${f(s.O)} × C ${f(s.C)} × K ${f(s.K)} = B ${f(s.B)}`;
+    const s = shown.score, f = v => v.toFixed(2), G = Conifer.genome(shown.seed), hex = Conifer.seedHex(shown.seed);
+    seedEl.textContent = hex;
+    seedEl.href = `?seed=${hex}`;
+    seedEl.title = "この木を再現する URL";
+    genomeEl.textContent = `葉 ${cl.pts.leaves.toLocaleString("en-US")} 本 · 枝 n=${G.whorl} × ${G.tiers} 段 · 葉序 ${G.phyllo[0]}/${G.phyllo[1]} · 葉角 ${Math.round(G.leafAngle * 180 / Math.PI)}°`;
+    scoreEl.textContent = `O ${f(s.O)} × C ${f(s.C)} × K ${f(s.K)} = B ${f(s.B)}`;
   }
 
   function run() {
@@ -135,7 +141,7 @@
   }
 
   $("#regrow").addEventListener("click", () => {
-    seed = 1 + Math.floor(Math.random() * 9000);
+    seed = Conifer.randomSeed(); exact = false;
     buildHero(true);
   });
   slider.addEventListener("change", () => buildHero(false));
