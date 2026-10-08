@@ -36,17 +36,18 @@
     <div class="hero-copy">
       <p class="eyebrow">York-14 — Design Portfolio 2026</p>
       <h1>秩序と混沌の<br>あいだで、<br>凛と育つ。</h1>
-      <p class="lead">Order &amp; Chaos. 黄金角と円錐の秩序に、カオス写像のゆらぎを少しだけ。<br class="pc">同じ木は二度と育たない。</p>
+      <p class="lead">Order &amp; Chaos. 黄金角と円錐の秩序に、カオス写像のゆらぎを。<br class="pc">80〜120 BPM の鼓動で、緊張と緩和を繰り返す。</p>
     </div>
 
     <div class="hero-ctrl" role="group" aria-label="生成のコントロール">
       <label class="balance">
         <span>Order</span>
-        <input id="chaos" type="range" min="0" max="1" step="0.01" value="0.32" aria-label="秩序と混沌のバランス">
+        <input id="chaos" type="range" min="0" max="1" step="0.01" value="0.32" aria-label="揺れの中心（秩序と混沌のバランス）">
         <span>Chaos</span>
       </label>
       <button id="regrow" type="button">もう一度育てる</button>
-      <output id="readout" aria-live="polite"></output>
+      <button id="pause" type="button" aria-pressed="false">止める</button>
+      <p id="readout"><span id="beat" aria-hidden="true"></span><span id="bpm">growing</span><span id="score"></span></p>
     </div>
     <a class="scroll-cue" href="#concept" aria-label="下へスクロール"><span></span></a>
   </section>
@@ -185,6 +186,11 @@
         <p class="eq-label">Growth</p>
         <p class="formula">t(y) = T · y<sup>1.05</sup>,&nbsp;&nbsp; τ<sub>k</sub> ∝ √(L<sub>k</sub> / L<sub>0</sub>)</p>
         <p>成長前線が根元から梢へ上がり、通過した段から枝が伸び始めます。下の枝ほど長く伸び続けるので、時間差がそのまま円錐の形になります。</p>
+      </div>
+      <div class="eq">
+        <p class="eq-label">Rhythm — 緊張と緩和</p>
+        <p class="formula">BPM(t) = 100 − 20 cos(2πt / 24),&nbsp;&nbsp; c(t) = c<sub>0</sub> + 0.5 (τ − 0.4) + 0.16 · beat · (0.35 + 0.65 τ)</p>
+        <p>テンポは 24 秒かけて 80 → 120 → 80 BPM を往復します。速くなるほど緊張 τ が高まり、木は混沌へ。遅くなるほど緩和され、秩序へ還ります。拍ごとに一瞬だけ混沌側へ振れ、ゆっくり戻る「ドクン」が重なります。木の各点は秩序の姿と混沌の姿の 2 つの座標を持ち、毎フレームその間を c で補間しています。</p>
       </div>
       <div class="eq">
         <p class="eq-label">Beauty</p>

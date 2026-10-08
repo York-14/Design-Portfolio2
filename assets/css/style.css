@@ -71,13 +71,15 @@ h1 {
 }
 .balance { display: flex; align-items: center; gap: 12px; color: var(--muted); text-transform: uppercase; }
 .balance input { width: 160px; accent-color: var(--accent); }
-#regrow {
+#regrow, #pause {
   font: inherit; letter-spacing: 0.12em; padding: 8px 16px; cursor: pointer;
   background: transparent; color: var(--text); border: 1px solid var(--line); border-radius: 999px;
   transition: border-color .2s, background .2s;
 }
-#regrow:hover { border-color: var(--text); }
-#readout { font: 400 10.5px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); letter-spacing: 0.04em; width: 100%; }
+#regrow:hover, #pause:hover { border-color: var(--text); }
+#readout { margin: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font: 400 10.5px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); letter-spacing: 0.04em; width: 100%; }
+#beat { width: 7px; height: 7px; border-radius: 50%; background: var(--text); opacity: .2; will-change: transform, opacity; }
+#bpm { min-width: 6.5em; color: var(--text); }
 .scroll-cue { position: absolute; right: clamp(16px, 4vw, 48px); bottom: 32px; width: 1px; height: 64px; background: var(--line); overflow: hidden; }
 .scroll-cue span { position: absolute; left: 0; top: -40%; width: 1px; height: 40%; background: var(--text); animation: cue 2.4s ease-in-out infinite; }
 @keyframes cue { to { top: 100%; } }

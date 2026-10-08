@@ -72,37 +72,79 @@
           cx: W * (x0 + (1.04 - x0) * slot), cy: main.cy - H * 0.05 * (1 - depth),
           scale: main.scale * k, rot: R() * 6.28, fog: 0.78 - 0.4 * depth,
         },
-        weight: 0.8, budget: px * 0.5 * k * k * 2.2, delay: 0.1 + R() * 0.8,
+        weight: 0.8, budget: px * 0.32 * k * k * 2.2, delay: 0.1 + R() * 0.8,
       });
     }
     list.push({
       opt: { seed: best.seed, chaos },
       view: { ...main, rot: 0 },
-      weight: 1, budget: px * 1.25, delay: 0,
+      weight: 1, budget: px * 0.85, delay: 0,
     });
     return list;
   }
 
+  // ---- 鼓動：80 ↔ 120 BPM の可変テンポで、緊張（混沌）と緩和（秩序）を繰り返す ----
+  const bpmEl = $("#bpm"), beatEl = $("#beat"), scoreEl = $("#score"), pauseBtn = $("#pause");
+  let growEnd = 0, now = 0, paused = false, visible = true, lastText = 0;
+
+  function chaosAt(T) {
+    const center = +slider.value;
+    // 成長し終えるまでは中心の混沌度のまま。その後 3 秒かけて鼓動が立ち上がる
+    const x = clamp01((T - growEnd * 0.75) / 3), amp = x * x * (3 - 2 * x);
+    const p = Conifer.pulse(T);
+    const c = center + amp * (0.5 * (p.tension - 0.4) + 0.16 * p.beat * (0.35 + 0.65 * p.tension));
+    // 表示
+    beatEl.style.opacity = (0.2 + 0.8 * p.beat * amp).toFixed(3);
+    beatEl.style.transform = `scale(${(1 + 0.6 * p.beat * amp).toFixed(3)})`;
+    if (T - lastText > 0.2) {
+      lastText = T;
+      bpmEl.textContent = amp > 0.05 ? `${Math.round(p.bpm)} BPM` : "growing";
+    }
+    now = T;
+    return clamp01(c);
+  }
+  const clamp01 = v => Math.max(0, Math.min(1, v));
+
   function showReadout() {
     if (!best) return;
     const s = best.score, f = v => v.toFixed(2);
-    readout.textContent = `No.${String(seed).padStart(4, "0")}  c=${f(+slider.value)}  ` +
-      `O ${f(s.O)} × C ${f(s.C)} × K ${f(s.K)} = B ${f(s.B)}`;
+    scoreEl.textContent = `No.${String(seed).padStart(4, "0")}  O ${f(s.O)} × C ${f(s.C)} × K ${f(s.K)} = B ${f(s.B)}`;
   }
 
-  function buildHero(animate) {
-    const [W, H] = fitCanvas(canvas, 2.4e6);
+  function run(from) {
+    if (reduceMotion) { hero.frame(1e9, +slider.value); bpmEl.textContent = "still"; return; }
+    if (paused || !visible) { hero.stop(); hero.frame(from, chaosAt(from)); return; }
+    hero.play(chaosAt, from);
+  }
+
+  function buildHero(regrow) {
+    const [W, H] = fitCanvas(canvas, 1.5e6);
     hero.resize(W, H);
-    hero.setTrees(heroTrees(W, H));
+    growEnd = hero.setTrees(heroTrees(W, H));
     showReadout();
-    if (animate && !reduceMotion) hero.grow(); else hero.instant();
+    lastText = -1;
+    run(regrow ? 0 : Math.max(now, growEnd));
   }
 
   $("#regrow").addEventListener("click", () => {
     seed = 1 + Math.floor(Math.random() * 9000);
     buildHero(true);
   });
-  slider.addEventListener("change", () => buildHero(true));
+  slider.addEventListener("change", () => buildHero(false));
+
+  pauseBtn.hidden = reduceMotion;
+  pauseBtn.addEventListener("click", () => {
+    paused = !paused;
+    pauseBtn.textContent = paused ? "動かす" : "止める";
+    pauseBtn.setAttribute("aria-pressed", String(paused));
+    run(now);
+  });
+  // 画面外・非表示のタブでは止める（再開時は同じ時刻から）
+  new IntersectionObserver(([e]) => {
+    if (e.isIntersecting === visible) return;
+    visible = e.isIntersecting; run(now);
+  }).observe(canvas);
+  document.addEventListener("visibilitychange", () => { visible = !document.hidden; run(now); });
 
   let lastW = 0, lastH = 0, rt = 0;
   window.addEventListener("resize", () => {
