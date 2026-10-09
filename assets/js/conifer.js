@@ -16,6 +16,7 @@
   const GOLDEN = Math.PI * (3 - Math.sqrt(5)); // 黄金角 ≈ 137.5°
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const bell = (x, mu, s) => Math.exp(-0.5 * ((x - mu) / s) ** 2);
+  const fract = x => x - Math.floor(x);
 
   // ================================================================
   // Chaos source — symmetric icon
@@ -86,6 +87,7 @@
       leafAngle: (40 + 25 * r()) * Math.PI / 180, // 針葉が小枝となす角 α0
       leafLen,                               // 針葉の長さ λ
       leafGap: leafLen * (0.04 + 0.025 * r()), // 針葉の間隔 Δ（トウヒでは長さの 1/20 前後）
+      tint: r(),                             // 葉の色味：0 = 青みのトウヒ … 1 = 黄みのモミ
     };
   }
 
@@ -118,8 +120,9 @@
       const un = () => (replay ? tape[ti++] : (tape.push(N.unit()), tape[tape.length - 1]));
       const r = () => xi() * C;                // 混沌の振れ幅でスケールしたゆらぎ
       const segs = [];
-      const add = (a, b, t0, dur, needle, dens, weight, drop = 9) =>
-        segs.push({ a, b, t0, dur: Math.max(dur, 0.02), needle, dens, weight, drop, drawn: 0 });
+      // tip：枝の根元 0 → 先端 1（先端ほど新しい芽で、明るい黄緑になる）
+      const add = (a, b, t0, dur, needle, dens, weight, drop = 9, tip = [0, 0]) =>
+        segs.push({ a, b, t0, dur: Math.max(dur, 0.02), needle, dens, weight, drop, tip });
 
       // ---- 幹（Order：ほぼ垂直。Chaos：わずかな揺らぎ） ----
       const sway = [r() * 0.012, r() * 0.012];
@@ -175,38 +178,42 @@
           const S = 8;
           for (let i = 0; i < S; i++) {
             const s0 = i / S, s1 = (i + 1) / S;
-            add(P(s0), P(s1), tStart + s0 * grow, grow / S, 0.008 + 0.01 * (1 - s0), 0.9, 1, drop);
+            add(P(s0), P(s1), tStart + s0 * grow, grow / S, 0.008 + 0.01 * (1 - s0), 0.9, 1, drop, [s0 * 0.85, s1 * 0.85]);
           }
           // ---- 小枝（自己相似：親枝の比で短くなる） ----
-          const nb = Math.max(3, Math.round(16 * Lc / Lmax));
+          //   小枝は親枝のまわりを黄金角で巡る（左右に開いた扁平なスプレー）。先は自重で垂れ下がる
+          const nb = Math.max(4, Math.round(24 * Lc / Lmax));
           const nd = 0.55 + 0.45 * Math.sqrt(Lc / Lmax);         // 短い枝は針葉も短い
+          const up = [0, 1, 0];
           for (let i = 1; i <= nb; i++) {
-            const s = clamp(0.1 + 0.86 * (i / (nb + 0.5)) + r() * 0.04, 0.05, 0.98);
+            const s = clamp(0.08 + 0.88 * (i / (nb + 0.5)) + r() * 0.04, 0.05, 0.98);
             const p0 = P(s), p1 = P(Math.min(1, s + 0.01));
             const tan = norm(sub(p1, p0));
-            const sg = i % 2 ? 1 : -1;
-            const ang = 0.95 + r() * 0.3;                        // 小枝の開き角 ≈ 55°
-            const sd = [side[0] * sg, 0, side[2] * sg];
+            const ang = 0.9 + r() * 0.35;                        // 小枝の開き角 ≈ 50〜70°
+            // 親枝まわりの方位：黄金角で巡り、上下方向は 0.5 に潰す（扁平なスプレー）
+            const ph = i * GOLDEN + r() * 0.6;
+            const ox = Math.cos(ph), oy = Math.sin(ph) * 0.5;
             const d = norm([
-              tan[0] * Math.cos(ang) + sd[0] * Math.sin(ang),
-              tan[1] * Math.cos(ang) - 0.12,
-              tan[2] * Math.cos(ang) + sd[2] * Math.sin(ang),
+              tan[0] * Math.cos(ang) + (side[0] * ox) * Math.sin(ang),
+              tan[1] * Math.cos(ang) + (up[1] * oy) * Math.sin(ang) - 0.1,
+              tan[2] * Math.cos(ang) + (side[2] * ox) * Math.sin(ang),
             ]);
             const xl = xi();
-            const l = L * 0.5 * Math.pow(1 - s, 0.7) * (1 + xl * C * 0.45) + 0.01;
-            const lc = Lc * 0.5 * Math.pow(1 - s, 0.7) * (1 + xl * Cs * 0.45) + 0.01;
+            const l = L * 0.58 * Math.pow(1 - s, 0.65) * (1 + xl * C * 0.45) + 0.012;
+            const lc = Lc * 0.58 * Math.pow(1 - s, 0.65) * (1 + xl * Cs * 0.45) + 0.012;
             const t0 = tStart + s * grow;
-            const q1 = [p0[0] + d[0] * l * 0.5, p0[1] + d[1] * l * 0.5 - l * 0.04, p0[2] + d[2] * l * 0.5];
-            const q2 = [p0[0] + d[0] * l, p0[1] + d[1] * l - l * (0.22 + 0.2 * (1 - h)), p0[2] + d[2] * l];
+            const hang = 0.22 + 0.28 * (1 - h);                  // 下の段ほど小枝が垂れる（トウヒのカーテン）
+            const q1 = [p0[0] + d[0] * l * 0.5, p0[1] + d[1] * l * 0.5 - l * hang * 0.25, p0[2] + d[2] * l * 0.5];
+            const q2 = [p0[0] + d[0] * l * 0.92, Math.max(0.012, p0[1] + d[1] * l * 0.92 - l * hang), p0[2] + d[2] * l * 0.92];
             const gd = 0.5 * Math.sqrt(lc / Lmax) + 0.15;
-            add(p0, q1, t0, gd * 0.5, 0.016 * nd, 0.9 * nd, 0.9, drop);
-            add(q1, q2, t0 + gd * 0.5, gd * 0.5, 0.013 * nd, 0.8 * nd, 0.8, drop);
+            add(p0, q1, t0, gd * 0.5, 0.016 * nd, 0.85 * nd, 0.9, drop, [0.4 + 0.3 * s, 0.7 + 0.2 * s]);
+            add(q1, q2, t0 + gd * 0.5, gd * 0.5, 0.013 * nd, 0.75 * nd, 0.8, drop, [0.7 + 0.2 * s, 1]);
           }
         }
       }
       // ---- 梢（頂芽：まっすぐ天へ） ----
       const tip = trunkAt(1);
-      add(trunkAt(top), [tip[0], 1.03, tip[2]], tf(top), 0.6, 0.006, 1.6, 1);
+      add(trunkAt(top), [tip[0], 1.03, tip[2]], tf(top), 0.6, 0.006, 1.6, 1, 0.99, [0.6, 1]);
       return segs;
     }
 
@@ -261,13 +268,40 @@
       const k = Math.floor((lenOf(g) * g.dens) / G.leafGap); leaves += k; return k;
     });
     const trunkPts = Math.round(budget * 0.025);
-    const P = clamp(Math.round((budget - trunkPts) / Math.max(1, leaves)), 3, 12); // 1 本の葉を何点で描くか
+    // 1 本の葉を何点で描くか。小さな遠景の木では、葉の一部だけを描く（数える本数は変わらない）
+    const P = clamp(Math.round((budget - trunkPts) / Math.max(1, leaves)), 2, 12);
+    const keep = Math.min(1, (budget - trunkPts) / Math.max(1, leaves * P));
     const trunkCount = segs.map(g => (g.drop > 1 ? Math.round((lenOf(g) * g.dens / trunkLen) * trunkPts) : 0));
-    const n = trunkCount.reduce((a, b) => a + b, 0) + leaves * P;
+    const n = trunkCount.reduce((a, b) => a + b, 0) + Math.ceil(leaves * keep * 1.05 + 64) * P;
     const X0 = new Float32Array(n), Y0 = new Float32Array(n), X1 = new Float32Array(n), Y1 = new Float32Array(n);
     const Wt = new Float32Array(n), B = new Float32Array(n), D = new Float32Array(n), Q = new Float32Array(n);
+    const CR = new Uint8Array(n), CG = new Uint8Array(n), CB = new Uint8Array(n), S = new Uint8Array(n);
     const pa = [0, 0, 0], pb = [0, 0, 0];
     const reach = tree.opt.slender, turn = (2 * Math.PI * G.phyllo[0]) / G.phyllo[1];
+    // ---- 色と光：太陽は左上・手前。樹冠の外側ほど明るく、内側と奥は陰る（簡易な遮蔽）。
+    //      葉の色味は genome.tint（青みのトウヒ ↔ 黄みのモミ）、枝先の新芽は明るい黄緑。
+    const mix3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+    const tt = G.tint ?? 0.5;
+    const OLD_DARK = mix3([20, 40, 38], [28, 46, 26], tt), OLD_LIT = mix3([78, 112, 98], [96, 124, 66], tt);
+    const NEW_DARK = [72, 98, 48], NEW_LIT = [168, 192, 104];
+    const BARK_DARK = [44, 34, 26], BARK_LIT = [128, 106, 84];
+    const SUN = norm([-0.5, 0.72, 0.5]);
+    const envAt = y => {                                       // 高さ y での樹冠の半径（円錐の包絡線）
+      const h = clamp((y - tree.opt.bareTrunk) / (1 - tree.opt.bareTrunk), 0, 1);
+      return Math.max(0.02, reach * (Math.pow(1 - h, 0.92) * 0.94 + 0.06));
+    };
+    let ci = 0;
+    const paint = (col, shade) => {                            // 点の色を記録（S は枯れ色の明るさに使う）
+      CR[ci] = clamp(col[0], 0, 255); CG[ci] = clamp(col[1], 0, 255); CB[ci] = clamp(col[2], 0, 255);
+      S[ci] = clamp(shade * 200, 0, 255); ci++;
+    };
+    const lightAt = (p, d) => {                                // 位置 p・葉の向き d での明るさ 0..1.2
+      const r = Math.hypot(p[0], p[2]) || 1e-6, rr = clamp(r / envAt(p[1]), 0, 1.2);
+      const nrm = norm([(p[0] / r) * 0.9, 0.45, (p[2] / r) * 0.9]);   // 樹冠の面は外・やや上を向く
+      const dif = clamp((nrm[0] * SUN[0] + nrm[1] * SUN[1] + nrm[2] * SUN[2] + 0.2) / 1.2, 0, 1);
+      const ao = (0.3 + 0.7 * Math.pow(Math.min(rr, 1), 0.8)) * (0.8 + 0.2 * p[1]) * (0.72 + 0.28 * clamp(0.5 + p[2] / (2 * envAt(p[1])), 0, 1));
+      return clamp(ao * (0.12 + 0.98 * dif) + (d ? 0.1 * d[1] : 0), 0, 1.25);
+    };
     const depthOf = z => 0.62 + 0.38 * clamp(0.5 + z * 2.2, 0, 1);   // 奥の枝ほど淡く（空気遠近）
     const frameOf = (a, b) => {                                // 小枝の局所座標 T, N₁, N₂
       const T = norm(sub(b, a));
@@ -292,13 +326,21 @@
           const t = N.unit(), [u, v] = N.pair(), rr = g.needle * Math.abs(u), ang = v * Math.PI;
           const o = [rr * Math.cos(ang), rr * Math.sin(ang) * 0.75, rr * Math.sin(ang * 1.7)];
           const at = (a, b) => [a[0] + (b[0] - a[0]) * t + o[0], a[1] + (b[1] - a[1]) * t + o[1], a[2] + (b[2] - a[2]) * t + o[2]];
-          put(g, t, at(a0, b0), at(a1, b1), w, 2 + g.a[1] + (g.b[1] - g.a[1]) * t);
+          const pc = at(g.a, g.b);
+          // 樹皮：光の当たる側が明るく、縦の筋がある
+          const side = clamp(0.5 + 0.5 * (Math.cos(ang) * SUN[0] + Math.sin(ang * 1.7) * SUN[2]) / 0.75, 0, 1);
+          // 樹冠の中の幹は葉に覆われて深い陰に沈み、ほとんど見えない
+          const inCrown = clamp((pc[1] - tree.opt.bareTrunk + 0.02) / 0.06, 0, 1);
+          const sh = (0.35 + 0.65 * side) * (0.7 + 0.3 * Math.abs(Math.sin(ang * 9 + v * 3))) * (1 - 0.75 * inCrown);
+          paint(mix3(mix3(BARK_DARK, BARK_LIT, sh), OLD_DARK, inCrown * 0.6), sh);
+          put(g, t, at(a0, b0), at(a1, b1), w * (1 - 0.7 * inCrown), 2 + pc[1]);
         }
       } else {
         const F0 = frameOf(a0, b0), F1 = frameOf(a1, b1);
         const ell = G.leafLen * (g.needle / 0.014);             // 葉の長さ（小枝の太さに比例）
         for (let i = 0; i < leafCount[si]; i++, leafIndex++) {
           const [xs, xa] = N.pair();                             // ゆらぎ ξ（カオス写像の軌道）
+          if (keep < 1 && (fract(leafIndex * 0.6180339887 + si * 0.37) > keep || k + P > n)) continue;
           const t = (i + 0.5 + 0.3 * xs * hi) / leafCount[si];
           const psi = leafIndex * turn, al = G.leafAngle;
           // 秩序の姿と混沌の姿で、ゆらぎの効き方だけが違う
@@ -318,8 +360,18 @@
           const y = g.a[1] + (g.b[1] - g.a[1]) * t;
           const r = Math.hypot(g.a[0] + (g.b[0] - g.a[0]) * t, g.a[2] + (g.b[2] - g.a[2]) * t);
           const q = clamp(0.45 * (1 - y) + 0.45 * (1 - Math.min(1, r / reach)) + 0.1 * Math.abs(xa), 0, 1);
+          // 葉の色：古い葉 ↔ 新芽（枝先）× 光
+          const dc = dirOf(frameOf(g.a, g.b), (lo + hi) / 2);
+          const pc = [g.a[0] + (g.b[0] - g.a[0]) * t, y, g.a[2] + (g.b[2] - g.a[2]) * t];
+          const L = lightAt(pc, dc) * (0.94 + 0.06 * xs);
+          const tip = g.tip[0] + (g.tip[1] - g.tip[0]) * t;
+          const fresh = clamp((tip - 0.82) / 0.18, 0, 1) * (0.5 + 0.5 * clamp(r / envAt(y), 0, 1));
+          const col = mix3(mix3(OLD_DARK, OLD_LIT, Math.min(1, L)), mix3(NEW_DARK, NEW_LIT, Math.min(1, L)), fresh);
+          const hl = Math.max(0, L - 1) * 120;                   // 強い光の当たる葉先のハイライト
+          const leafCol = [col[0] + hl, col[1] + hl, col[2] + hl * 0.7];
           for (let j = 0; j < P; j++) {
             const u = ell * ((j + 0.5) / P);
+            paint(leafCol, L);
             put(g, t, [base0[0] + d0[0] * u, base0[1] + d0[1] * u, base0[2] + d0[2] * u],
                       [base1[0] + d1[0] * u, base1[1] + d1[1] * u, base1[2] + d1[2] * u], w, q);
           }
@@ -328,7 +380,9 @@
       since += leafCount[si] * P + trunkCount[si];
       if (since > 30000) { since = 0; yield; }
     }
-    const c = yield* sortByRow({ n: k, X0, Y0, X1, Y1, Wt, B, D, Q, haze: fog > 0 });
+    const cut = a => a.subarray(0, k);
+    const c = yield* sortByRow({ n: k, X0: cut(X0), Y0: cut(Y0), X1: cut(X1), Y1: cut(Y1), Wt: cut(Wt), B: cut(B), D: cut(D), Q: cut(Q),
+      CR: cut(CR), CG: cut(CG), CB: cut(CB), S: cut(S), fog, haze: fog > 0 });
     c.leaves = leaves; c.perLeaf = P;
     return c;
   }
@@ -346,12 +400,20 @@
     const idx = new Uint32Array(n);
     for (let i = 0; i < n; i++) idx[start[(Y0[i] | 0) - lo]++] = i;
     yield;
-    for (const key of ["X0", "Y0", "X1", "Y1", "Wt", "B", "D", "Q"]) {
-      const src = c[key], dst = new Float32Array(n);
+    for (const key of ["X0", "Y0", "X1", "Y1", "Wt", "B", "D", "Q", "CR", "CG", "CB", "S"]) {
+      const src = c[key], dst = new src.constructor(n);
       for (let i = 0; i < n; i++) dst[i] = src[idx[i]];
       c[key] = dst;
       yield;
     }
+    // 毎フレームの加算用に詰め直す：P4 = [x0, y0, x1−x0, y1−y0]、CW = [w, w·R, w·G, w·B]
+    const P4 = new Float32Array(n * 4), CW = new Float32Array(n * 4);
+    for (let i = 0; i < n; i++) {
+      const i4 = i << 2, w = c.Wt[i];
+      P4[i4] = c.X0[i]; P4[i4 + 1] = c.Y0[i]; P4[i4 + 2] = c.X1[i] - c.X0[i]; P4[i4 + 3] = c.Y1[i] - c.Y0[i];
+      CW[i4] = w; CW[i4 + 1] = w * c.CR[i]; CW[i4 + 2] = w * c.CG[i]; CW[i4 + 3] = w * c.CB[i];
+    }
+    c.P4 = P4; c.CW = CW;
     return c;
   }
 
@@ -391,9 +453,9 @@
     const mirror = uni ? inter / uni : 0;
     const D = Math.log2(c128 / Math.max(c32, 1)) / 2;            // ボックス次元
     const neg = rowsSpan ? 1 - rowsFill / rowsSpan : 0;           // 輪郭内の余白
-    const O = bell(mirror, 0.7, 0.09);
-    const Cx = bell(D, 1.7, 0.09);
-    const K = bell(neg, 0.2, 0.1);
+    const O = bell(mirror, 0.76, 0.06);
+    const Cx = bell(D, 1.79, 0.05);
+    const K = bell(neg, 0.09, 0.04);
     return { O, C: Cx, K, B: O * Cx * K, mirror, D, neg };
   }
 
@@ -418,14 +480,19 @@
 
   function createScene(canvas) {
     const ctx = canvas.getContext("2d");
-    let W = 0, H = 0, hist = null, haze = null, dry = null, img = null;
-    let clouds = [], raf = 0;
+    let W = 0, H = 0, hist = null, img = null;
+    // 色付きの密度場：画素の色は点の色の加重平均、不透明度は重みの合計から
+    // A：主木の層。画素ごとに [重み, 重み×R, 重み×G, 重み×B] を並べて持つ（メモリを 1 か所で触る）
+    let A = null, BGI = null, BG32 = null, D32 = null;
+    // E：遠景の層（半分の解像度、3 フレームに 1 回だけ更新してぼかす）。主木の後ろに置き、霞のように柔らかく
+    let FW = 0, FH = 0, E = null, E2 = null, fcount = 0, farForce = true;
+    let clouds = [], raf = 0, groundY = -1;
     let palette = { bg: "#f3f1ea", stops: ["#f3f1ea", "#8f9a90", "#2c3a33", "#101814"] };
-    let LUT = new Uint8ClampedArray(256 * 3), BG = [0, 0, 0], DRY = [156, 143, 120];
-    let ref = 1;
-    // トーンマップ表：密度 → 色。毎フレームの塗りを表引きだけにする
+    let LUT = new Uint8ClampedArray(256 * 3), BG = [0, 0, 0], FOG = [220, 224, 218], DRY_D = [80, 62, 44], DRY_L = [166, 138, 98];
+    let gain = 1, lift = 0, ref = 1, mono = false;
+    // トーンマップ表：密度 → 不透明度（と重なりの陰り）
     const TN = 2048;
-    let tq = 1, tabHz = new Uint8ClampedArray(TN * 3), tabM = new Uint8ClampedArray(TN * 3), tabA = new Float32Array(TN), tabD = new Float32Array(TN);
+    let tq = 1, tabA = new Float32Array(TN), tabK = new Float32Array(TN);
 
     function buildLUT() {
       const st = palette.stops.map(hex);
@@ -434,22 +501,39 @@
         for (let k = 0; k < 3; k++) LUT[i * 3 + k] = st[j][k] + f * (st[j + 1][k] - st[j][k]);
       }
       BG = hex(palette.bg);
-      DRY = hex(palette.dry || "#9c8f78");
-      buildTables();
+      FOG = hex(palette.fog || palette.bg);
+      DRY_D = hex(palette.dryDark || "#503e2c"); DRY_L = hex(palette.dry || "#a68a62");
+      gain = palette.gain ?? 1; lift = palette.lift ?? 0;
+      buildTables(); buildBackground();
     }
     function buildTables() {
       const lm = Math.log1p(ref), g = 0.78;
       tq = (TN - 1) / (ref * 1.6);
       for (let i = 0; i < TN; i++) {
         const h = i / tq, v = h > 0 ? Math.min(1, Math.pow(Math.log1p(h) / lm, g)) : 0;
-        // 霞の層：淡く、暗部まで届かない（背景色に重ねた結果を持つ）
-        const th = (v * 150) | 0, ah = h > 0 ? Math.min(1, v * 2.2) * 0.75 : 0;
-        for (let k = 0; k < 3; k++) tabHz[i * 3 + k] = BG[k] + (LUT[th * 3 + k] - BG[k]) * ah;
-        const tm = (v * 255) | 0;
-        for (let k = 0; k < 3; k++) tabM[i * 3 + k] = LUT[tm * 3 + k];
-        tabA[i] = h > 0 ? Math.min(1, v * 2.2) : 0;
-        tabD[i] = h > 0 ? Math.min(1, v * 1.9) * 0.8 : 0;      // 枯れの層：乾いた木の色
+        tabA[i] = h > 0 ? Math.min(1, v * 2.4) : 0;
+        tabK[i] = 1.06 - 0.32 * v;                               // 葉が重なるほど奥が陰る
       }
+    }
+    // 空と地面：上は空、地平で霞み、足元は地面からページの地色へ
+    function buildBackground() {
+      if (!W) return;
+      BGI = new Uint8ClampedArray(W * H * 3);
+      const top = hex(palette.sky ? palette.sky[0] : palette.bg), hor = hex(palette.sky ? palette.sky[1] : palette.bg);
+      const gnd = hex(palette.ground || palette.bg), fl = hex(palette.floor || palette.ground || palette.bg), y0 = groundY > 0 ? groundY : H * 0.93;
+      for (let y = 0; y < H; y++) {
+        let c;
+        if (y < y0) { const t = Math.pow(y / y0, 1.6); c = [0, 1, 2].map(k => top[k] + (hor[k] - top[k]) * t); }
+        else {
+          // 林床：地平のすぐ下は木陰で暗く、手前に向かってページの地色へ
+          const t = Math.min(1, (y - y0) / Math.max(1, H - y0));
+          const shade = Math.exp(-t * 4) * Math.min(1, (y - y0) / Math.max(2, H * 0.03));    // 地平から滑らかに
+          c = [0, 1, 2].map(k => { const base = hor[k] + (gnd[k] - hor[k]) * Math.min(1, t * 2) + (BG[k] - gnd[k]) * Math.max(0, t * 1.4 - 0.4); return base + (fl[k] - base) * shade * 0.5; });
+        }
+        for (let x = 0; x < W; x++) { const j = (y * W + x) * 3; BGI[j] = c[0]; BGI[j + 1] = c[1]; BGI[j + 2] = c[2]; }
+      }
+      BG32 = new Uint32Array(W * H);
+      for (let i = 0; i < W * H; i++) BG32[i] = 0xff000000 | (BGI[i * 3 + 2] << 16) | (BGI[i * 3 + 1] << 8) | BGI[i * 3];
     }
     buildLUT();
 
@@ -457,25 +541,55 @@
       W = canvas.width = Math.max(1, w | 0);
       H = canvas.height = Math.max(1, h | 0);
       hist = new Float32Array(W * H);
-      haze = new Float32Array(W * H);
-      dry = new Float32Array(W * H);
+      A = new Float32Array(W * H * 4);
+      FW = (W + 1) >> 1; FH = (H + 1) >> 1;
+      E = new Float32Array(FW * FH * 4); E2 = new Float32Array(FW * FH * 4); farForce = true;
       img = ctx.createImageData(W, H);
+      D32 = new Uint32Array(img.data.buffer);
+      buildBackground();
+    }
+    function setGround(y) { groundY = y; buildBackground(); }
+
+    // 単色の描画（作品サムネイル用）
+    function paintMono() {
+      const d = img.data, lm = Math.log1p(ref), g = 0.78;
+      for (let i = 0, n = W * H; i < n; i++) {
+        let r = BG[0], gg = BG[1], b = BG[2];
+        const hv = hist[i];
+        if (hv > 0) {
+          const v = Math.min(1, Math.pow(Math.log1p(hv) / lm, g)), t = (v * 255) | 0, al = Math.min(1, v * 2.2);
+          r += (LUT[t * 3] - r) * al; gg += (LUT[t * 3 + 1] - gg) * al; b += (LUT[t * 3 + 2] - b) * al;
+        }
+        const k = i << 2; d[k] = r; d[k + 1] = gg; d[k + 2] = b; d[k + 3] = 255;
+      }
+      ctx.putImageData(img, 0, 0);
     }
 
     function paint() {
       if (!img) return;
-      const d = img.data, top = TN - 1;
-      const br = BG[0], bg = BG[1], bb = BG[2];
-      for (let i = 0, n = W * H; i < n; i++) {
-        const hz = haze[i], hv = hist[i], dv = dry[i], k = i << 2;
-        let r = br, g = bg, b = bb;
-        if (hz > 0) { const j = Math.min(top, (hz * tq) | 0) * 3; r = tabHz[j]; g = tabHz[j + 1]; b = tabHz[j + 2]; }
-        if (dv > 0) { const a = tabD[Math.min(top, (dv * tq) | 0)]; r += (DRY[0] - r) * a; g += (DRY[1] - g) * a; b += (DRY[2] - b) * a; }
-        if (hv > 0) {
-          const j = Math.min(top, (hv * tq) | 0), a = tabA[j], j3 = j * 3;
-          r += (tabM[j3] - r) * a; g += (tabM[j3 + 1] - g) * a; b += (tabM[j3 + 2] - b) * a;
+      if (mono) return paintMono();
+      const top = TN - 1, bgi = BGI, d32 = D32, bg32 = BG32;
+      const cl8 = v => (v < 0 ? 0 : v > 255 ? 255 : v | 0);
+      // 木より上の空は背景をそのまま写す
+      const y0 = clamp(Math.floor(clouds.reduce((m, c) => Math.min(m, c.view.cy - c.view.scale * 1.12), H)), 0, H) & ~1;
+      d32.set(bg32.subarray(0, y0 * W));
+      for (let y = y0, i = y0 * W; y < H; y++) {
+        const fr = (y >> 1) * FW;
+        for (let x = 0; x < W; x++, i++) {
+          const i4 = i << 2, f4 = (fr + (x >> 1)) << 2, w = A[i4], we = E[f4];
+          if (w <= 0 && we <= 0) { d32[i] = bg32[i]; continue; }
+          const i3 = i * 3;
+          let r = bgi[i3], g = bgi[i3 + 1], b = bgi[i3 + 2];
+          if (we > 0) {                                          // 遠景（霞）
+            const j = Math.min(top, (we * tq) | 0), a = tabA[j] * 0.92, m = (tabK[j] * gain) / we;
+            r += (E[f4 + 1] * m + lift - r) * a; g += (E[f4 + 2] * m + lift - g) * a; b += (E[f4 + 3] * m + lift - b) * a;
+          }
+          if (w > 0) {                                           // 主木は霞の手前
+            const j = Math.min(top, (w * tq) | 0), a = tabA[j], m = (tabK[j] * gain) / w;
+            r += (A[i4 + 1] * m + lift - r) * a; g += (A[i4 + 2] * m + lift - g) * a; b += (A[i4 + 3] * m + lift - b) * a;
+          }
+          d32[i] = 0xff000000 | (cl8(b) << 16) | (cl8(g) << 8) | cl8(r);
         }
-        d[k] = r; d[k + 1] = g; d[k + 2] = b; d[k + 3] = 255;
       }
       ctx.putImageData(img, 0, 0);
     }
@@ -494,21 +608,33 @@
     }
 
     // trees: [{ opt, view: {cx, cy, scale, rot, elev, fog}, weight, budget, delay, mature, renew }]
+    // opt を持たない木は renew() で seed を選んでから焼く。焼き上げはアニメーションの合間に少しずつ（主木が先）
     function setTrees(list, range = [0, 1], { mature = false } = {}) {
       jobs = [];
-      clouds = list.map(spec => {
-        const { tree, pts } = makeCloud(spec, range, false);
-        const cl = { spec, pts, view: spec.view, center: spec.opt.chaos ?? 0.32, G: tree.end, M: spec.mature ?? LIFE.mature };
-        cl.life = mature ? cl.G + 0.5 : -(spec.delay ?? 0);
-        return cl;
-      });
+      clouds = list.map(spec => ({ spec, pts: null, view: spec.view, center: spec.opt?.chaos ?? 0.32, M: spec.mature ?? LIFE.mature, mature, G: 0, life: 0 }));
       clouds.range = range;
+      for (const cl of [...clouds].reverse()) {                // 主木（最後の木）から先に焼く
+        cl.job = (function* () {
+          const spec = cl.spec.opt ? cl.spec : yield* cl.spec.renew();
+          const { tree, gen } = makeCloud(spec, range, true);
+          const pts = yield* gen;
+          return { spec, pts, G: tree.end, first: true };
+        })();
+        jobs.push(cl.job);
+      }
       // トーンマップの基準：画素あたりの期待密度から決める（成長中に明るさが跳ねないように）
       const budget = list.reduce((s, x) => s + (x.budget ?? 1e6) * (x.weight ?? 1), 0);
       ref = Math.max(4, (budget / (W * H)) * 90);
       buildTables();
-      return clouds.reduce((m, c) => Math.max(m, c.G + (c.spec.delay ?? 0)), 0);   // 最初の成長が終わる時刻
     }
+    // 焼き上がった木を場に出す
+    function adopt(cl, next) {
+      Object.assign(cl, { spec: next.spec, pts: next.pts, G: next.G, center: next.spec.opt.chaos ?? cl.center });
+      if (next.first) cl.life = cl.mature ? cl.G + 0.5 : -(cl.spec.delay ?? 0);
+      cl.job = cl.next = null;
+    }
+    // 初回の焼き上げを最後まで済ませる（静止画用）
+    function bakeAll() { while (jobs.length) { const job = jobs.shift(), r = run(job); const cl = clouds.find(c => c.job === job); if (cl) adopt(cl, r); } }
 
     function phaseOf(cl) {
       let L = cl.life;
@@ -522,6 +648,7 @@
     // 生命の時計を進める。rate は鼓動から決まる可変の速さ
     function advance(dt, rate) {
       for (const cl of clouds) {
+        if (!cl.pts) { if (cl.next) adopt(cl, cl.next); continue; }
         cl.life += dt * rate;
         const [ph, x] = phaseOf(cl);
         // 枯れ始めたら、次の木を少しずつ焼き始める（主木のみ）
@@ -537,71 +664,86 @@
         if (ph === "rest" && x >= 1) {
           if (cl.job) {
             if (!cl.next) { cl.life = cl.G + cl.M + LIFE.wither + LIFE.fall + LIFE.rest; continue; } // 焼き上がるまで眠る
-            Object.assign(cl, cl.next, { center: cl.next.spec.opt.chaos ?? cl.center }); cl.job = cl.next = null;
-            cl.onRenew && cl.onRenew(cl.spec);
+            adopt(cl, cl.next);
           }
           cl.life = 0;
         }
       }
       // 焼き上げは 1 フレームあたり数ミリ秒だけ
-      const t0 = performance.now();
-      while (jobs.length && performance.now() - t0 < 5) {
+      const t0 = performance.now(), slice = clouds.some(c => !c.pts) ? 14 : 5;   // 初回は多めに
+      while (jobs.length && performance.now() - t0 < slice) {
         const job = jobs[0], r = job.next();
         if (r.done) { jobs.shift(); const cl = clouds.find(c => c.job === job); if (cl) cl.next = r.value; }
       }
     }
 
-    const fract = x => x - Math.floor(x);
     const ease = x => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
 
-    // 1 フレーム描く。c は呼吸の混沌度（中心からのずれ dc として各木に足す）
+    // 1 フレーム描く。dc は呼吸の混沌度の揺れ（中心からのずれとして各木に足す）
     function frame(dc) {
-      hist.fill(0); haze.fill(0); dry.fill(0);
+      A.fill(0);
+      const farNow = farForce || fcount++ % 3 === 0;           // 遠景は 3 フレームに 1 回
+      if (farNow) E.fill(0);
+      farForce = false;
       const [lo, hi] = clouds.range || [0, 1];
       for (const cl of clouds) {
-        const { n, X0, Y0, X1, Y1, Wt, B, D, Q } = cl.pts;
-        const F = cl.pts.haze ? haze : hist;
+        if (!cl.pts || (cl.pts.haze && !farNow)) continue;
+        const { n, X0, Y0, X1, Y1, Wt, B, D, Q, CR, CG, CB, S } = cl.pts;
         const [ph, x] = phaseOf(cl);
         const sc = cl.view.scale, ground = cl.view.cy;
-        const dk = cl.pts.haze ? 0.4 : 0.9;                      // 枯れの層の濃さ（遠景は淡く）
+        // 空気遠近：遠い木ほど霞の色へ
+        const fg = (cl.pts.fog || 0) * 0.92, fr = FOG[0] * fg, fgG = FOG[1] * fg, fb = FOG[2] * fg, kf = 1 - fg;
         let c = cl.center;
         if (ph === "breathe") c = clamp(cl.center + dc * ease(x / 3), 0, 1);      // 3 秒かけて鼓動が立ち上がる
         else if (ph === "wither") c = cl.center + (0.85 - cl.center) * ease(x);   // 枯れるほど秩序がほどける
         else if (ph === "fall" || ph === "rest") c = 0.85;
         const k = clamp((c - lo) / (hi - lo), 0, 1);
         const dropT = (ph === "grow" || ph === "breathe" ? c * c : cl.center * cl.center) * 0.35;
+        // 書き込み先：遠景は半分の解像度の霞の層へ（重みは 1/4 にして濃さを揃える）
+        const far = !!cl.pts.haze, wk = far ? 0.25 : 1;
+        const BUF = far ? E : A, BW = far ? FW : W, sh = far ? 1 : 0;
+        const splat = (px, py, w, r, g, b) => {
+          px |= 0; py |= 0;
+          if (w <= 0 || px < 0 || py < 0 || px >= W || py >= H) return;
+          const j = ((py >> sh) * BW + (px >> sh)) << 2; w *= wk;
+          BUF[j] += w; BUF[j + 1] += w * (r * kf + fr); BUF[j + 2] += w * (g * kf + fgG); BUF[j + 3] += w * (b * kf + fb);
+        };
 
         if (ph === "grow" || ph === "breathe") {
           const Tg = ph === "grow" ? x : 1e9;
+          const { P4, CW } = cl.pts, sw = stride * wk;
           for (let i = 0; i < n; i += stride) {
             const dd = D[i] - dropT;
             if (B[i] > Tg || dd < 0) continue;
-            const px = (X0[i] + (X1[i] - X0[i]) * k) | 0, py = (Y0[i] + (Y1[i] - Y0[i]) * k) | 0;
+            const i4 = i << 2;
+            const px = (P4[i4] + P4[i4 + 2] * k) | 0, py = (P4[i4 + 1] + P4[i4 + 3] * k) | 0;
             if (px < 0 || py < 0 || px >= W || py >= H) continue;
-            F[py * W + px] += Wt[i] * stride * (dd < 0.04 ? dd * 25 : 1);   // 欠ける枝は溶けるように消える
+            const m = dd < 0.04 ? sw * dd * 25 : sw, j = ((py >> sh) * BW + (px >> sh)) << 2;  // 欠ける枝は溶けるように消える
+            const w = CW[i4] * m;
+            BUF[j] += w; BUF[j + 1] += m * CW[i4 + 1] * kf + w * fr; BUF[j + 2] += m * CW[i4 + 2] * kf + w * fgG; BUF[j + 3] += m * CW[i4 + 3] * kf + w * fb;
           }
         } else if (ph === "wither") {
-          // 枯れる：梢と枝先から緑が抜けて乾いた色（枯れの層）へ移り、自重で垂れる
+          // 枯れる：梢と枝先から緑が抜けて枯れ色へ、自重で垂れる
           for (let i = 0; i < n; i += stride) {
             if (D[i] < dropT) continue;
-            const q = Q[i] >= 2 ? 0.9 : Q[i];
-            const wf = ease((x - q * 0.7) / 0.3);
-            const px = (X0[i] + (X1[i] - X0[i]) * k) | 0;
-            const py = (Y0[i] + (Y1[i] - Y0[i]) * k + (Q[i] >= 2 ? 0 : wf * sc * 0.02)) | 0;
-            if (px < 0 || py < 0 || px >= W || py >= H) continue;
-            const w = Wt[i] * stride, j = py * W + px;
-            F[j] += w * (1 - wf);
-            dry[j] += w * wf * dk;
+            const trunk = Q[i] >= 2, q = trunk ? 0.9 : Q[i];
+            const wf = trunk ? 0 : ease((x - q * 0.7) / 0.3), sh = Math.min(1, S[i] / 200);
+            const px = X0[i] + (X1[i] - X0[i]) * k, py = Y0[i] + (Y1[i] - Y0[i]) * k + wf * sc * 0.02;
+            const dr = DRY_D[0] + (DRY_L[0] - DRY_D[0]) * sh, dg = DRY_D[1] + (DRY_L[1] - DRY_D[1]) * sh, db = DRY_D[2] + (DRY_L[2] - DRY_D[2]) * sh;
+            splat(px, py, Wt[i] * stride * (1 - 0.25 * wf),
+              CR[i] + (dr - CR[i]) * wf, CG[i] + (dg - CG[i]) * wf, CB[i] + (db - CB[i]) * wf);
           }
         } else if (ph === "fall") {
           // 散る：枯れた順に枝を離れ、風に揺れながら落ち、地面に積もって消える
           const litter = 1 - ease((x - 0.8) / 0.2);
           for (let i = 0; i < n; i += stride) {
             if (D[i] < dropT) continue;
-            const h1 = fract(i * 0.6180339887), h2 = fract(i * 0.7548776662);
-            let px = X0[i] + (X1[i] - X0[i]) * k, py = Y0[i] + (Y1[i] - Y0[i]) * k, w = Wt[i] * stride * dk;
+            const h1 = fract(i * 0.6180339887), h2 = fract(i * 0.7548776662), sh = Math.min(1, S[i] / 200);
+            let px = X0[i] + (X1[i] - X0[i]) * k, py = Y0[i] + (Y1[i] - Y0[i]) * k, w = Wt[i] * stride * 0.75;
+            let r = DRY_D[0] + (DRY_L[0] - DRY_D[0]) * sh, g = DRY_D[1] + (DRY_L[1] - DRY_D[1]) * sh, b = DRY_D[2] + (DRY_L[2] - DRY_D[2]) * sh;
             if (Q[i] >= 2) {
               w *= 1 - ease((x - 0.55) / 0.4);                 // 幹は最後まで立ち、やがて消える
+              r = CR[i]; g = CG[i]; b = CB[i];
             } else {
               py += sc * 0.02;
               const tf = (x - (Q[i] * 0.5 + h1 * 0.4)) * LIFE.fall;   // 枝を離れてからの時間（ばらばらに離れる）
@@ -611,21 +753,38 @@
                   py += sc * 0.02 * tf;
                 } else {
                   // 残りは風に流され、揺れながら落ちる
-                  w *= 0.85;
                   px += sc * ((0.02 + 0.08 * h1) * tf + 0.02 * Math.sin(4 * tf + 6.28 * h2));
                   py += sc * (0.05 + 0.1 * h2) * tf + sc * 0.05 * tf * tf;
                   if (py > ground - h1 * 3) { py = ground - h1 * 3; w *= litter; }   // 地面に積もる
                 }
               }
             }
-            px |= 0; py |= 0;
-            if (w <= 0 || px < 0 || py < 0 || px >= W || py >= H) continue;
-            dry[py * W + px] += w;
+            splat(px, py, w, r, g, b);
           }
         }
         // rest：何も描かない（土に還る）
       }
+      if (farNow) blurFar();
       paint();
+    }
+
+    // 遠景の層を [1 2 1] / 4 で縦横にぼかす（霞）
+    function blurFar() {
+      const src = E, tmp = E2;
+      for (let y = 0; y < FH; y++) {
+        const row = y * FW;
+        for (let x = 0; x < FW; x++) {
+          const c = (row + x) << 2, l = (row + Math.max(0, x - 1)) << 2, r = (row + Math.min(FW - 1, x + 1)) << 2;
+          for (let q = 0; q < 4; q++) tmp[c + q] = (src[l + q] + 2 * src[c + q] + src[r + q]) * 0.25;
+        }
+      }
+      for (let y = 0; y < FH; y++) {
+        const u = Math.max(0, y - 1) * FW, d = Math.min(FH - 1, y + 1) * FW, row = y * FW;
+        for (let x = 0; x < FW; x++) {
+          const c = (row + x) << 2, a = (u + x) << 2, b = (d + x) << 2;
+          for (let q = 0; q < 4; q++) src[c + q] = (tmp[a + q] + 2 * tmp[c + q] + tmp[b + q]) * 0.25;
+        }
+      }
     }
 
     // 再生：clock(T) が { dc, rate } を返す（dc：混沌度の揺れ、rate：生命の時計の速さ）
@@ -633,7 +792,7 @@
       cancelAnimationFrame(raf);
       let last = performance.now(), cost = 16;
       const loop = now => {
-        const dt = Math.min(0.05, (now - last) / 1000); last = now;
+        const dt = Math.min(0.12, (now - last) / 1000); last = now;
         T += dt;
         const { dc, rate } = clock(T);
         advance(dt, rate);
@@ -647,15 +806,15 @@
     }
     function stop() { cancelAnimationFrame(raf); raf = 0; }
     // 静止画：呼吸の中心で、成長しきった姿
-    function still() { stop(); for (const cl of clouds) cl.life = cl.G + 0.01; stride = 1; frame(0); }
-    const status = () => { const cl = clouds[clouds.length - 1]; return cl ? phaseOf(cl)[0] : ""; };
+    function still() { stop(); bakeAll(); for (const cl of clouds) cl.life = cl.G + 0.01; stride = 1; farForce = true; frame(0); }
+    const status = () => { const cl = clouds[clouds.length - 1]; return cl && cl.pts ? phaseOf(cl)[0] : "seeding"; };
 
-    function setPalette(p) { palette = p; buildLUT(); paint(); }
+    function setPalette(p) { palette = p; buildLUT(); farForce = true; paint(); }
 
     // 任意の点群を描く（作品サムネイルの花など）。fn(hist, W, H) が基準密度を返す
-    function draw(fn) { stop(); clouds = []; hist.fill(0); haze.fill(0); dry.fill(0); ref = fn(hist, W, H); buildTables(); paint(); }
+    function draw(fn) { stop(); mono = true; clouds = []; hist.fill(0); ref = fn(hist, W, H); buildTables(); paint(); }
 
-    return { resize, setTrees, frame, play, stop, still, status, setPalette, paint, draw, get clouds() { return clouds; } };
+    return { resize, setGround, setTrees, frame, play, stop, still, status, setPalette, paint, draw, get clouds() { return clouds; } };
   }
 
   // ================================================================

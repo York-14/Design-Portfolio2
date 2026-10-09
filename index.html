@@ -12,6 +12,12 @@
 <script>
   // テーマの初期化（ちらつき防止のため head で実行）
   try { const t = localStorage.getItem("oc.theme"); if (t) document.documentElement.dataset.theme = t; } catch {}
+  // サイネージ表示：?signage（全画面の木だけ）。?theme=dark|light で配色を固定
+  try {
+    const q = new URLSearchParams(location.search);
+    if (q.has("signage")) document.documentElement.classList.add("signage");
+    const th = q.get("theme"); if (th === "dark" || th === "light") document.documentElement.dataset.theme = th;
+  } catch {}
 </script>
 </head>
 <body>
@@ -99,24 +105,6 @@
           <h3><a href="https://york-14.github.io/Generative-Flower/" target="_blank" rel="noopener">咲く・散る — Generative Flower</a></h3>
           <p>蕾が開き、満開を迎え、花びらが一枚ずつ散り、また蕾へ還る。秩序から混沌へ、再び秩序へ戻る循環をひとつの位相 φ で描く。</p>
           <p class="links"><a href="https://york-14.github.io/Generative-Flower/" target="_blank" rel="noopener">Live ↗</a> <a href="https://github.com/York-14/Generative-Flower" target="_blank" rel="noopener">GitHub ↗</a></p>
-        </div>
-      </li>
-      <li class="work">
-        <a class="thumb" href="https://york-14.github.io/Design-Portfolio-1/ivy-order-chaos/" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true"><canvas class="mini" data-kind="ivy"></canvas></a>
-        <div class="meta">
-          <p class="tag">Generative</p>
-          <h3><a href="https://york-14.github.io/Design-Portfolio-1/ivy-order-chaos/" target="_blank" rel="noopener">Beauty — Order × Chaos</a></h3>
-          <p>蔦と葉で描く対称カオス写像。秩序と混沌が 80–120 BPM の鼓動で呼吸し続ける。</p>
-          <p class="links"><a href="https://york-14.github.io/Design-Portfolio-1/ivy-order-chaos/" target="_blank" rel="noopener">Live ↗</a> <a href="https://github.com/York-14/Design-Portfolio-1" target="_blank" rel="noopener">GitHub ↗</a></p>
-        </div>
-      </li>
-      <li class="work">
-        <a class="thumb" href="https://york-14.github.io/Design-portfolio/" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true"><canvas class="mini" data-kind="bifurcation"></canvas></a>
-        <div class="meta">
-          <p class="tag">Motion</p>
-          <h3><a href="https://york-14.github.io/Design-portfolio/" target="_blank" rel="noopener">ORDER × CHAOS — Generative Motion Reel</a></h3>
-          <p>これまでの作品の数式をひとつの流れに編み直した 15 秒のリール。映像も音もすべてコードで生成。</p>
-          <p class="links"><a href="https://york-14.github.io/Design-portfolio/" target="_blank" rel="noopener">Live ↗</a> <a href="https://github.com/York-14/Design-portfolio" target="_blank" rel="noopener">GitHub ↗</a></p>
         </div>
       </li>
       <li class="work">
@@ -209,9 +197,14 @@
         <p>一本ずつが「生命の時計」L を持ち、その進む速さは鼓動で変わります。テンポが速いと季節は早く巡り、遅いとゆっくり。拍の瞬間には一歩ぶん押し出されます。枯れる相では梢と枝先から緑が抜けて乾いた色になり、自重で垂れ、秩序がほどけていきます。散る相では枯れた順に枝を離れ、半分は宙で風化し、残りは風に揺れながら落ちて地面に積もり、土に還ります。眠りのあいだに新しい seed の木が Beauty で選ばれ、また育ちます。遠景の木は呼吸の長さが一本ずつ違うので、森の周期は少しずつずれていきます。</p>
       </div>
       <div class="eq">
+        <p class="eq-label">Light — 光と色</p>
+        <p class="formula">C = mix(古い葉, 新芽, f<sub>tip</sub>) · AO · (0.12 + 0.98 · max(0, n·L))</p>
+        <p>葉の 1 本ずつに色を持たせ、左上の太陽 L に対する樹冠の面の向き n で明るさを決めます。樹冠の内側と奥ほど暗くなり（AO）、枝先 f<sub>tip</sub> には明るい新芽が出ます。葉の色味（青みのトウヒ〜黄みのモミ）も seed から決まります。遠景の木は霞の色へ溶けていきます。</p>
+      </div>
+      <div class="eq">
         <p class="eq-label">Beauty</p>
         <p class="formula">B = O · C · K</p>
-        <p>O：左右の鏡映の度合い（完全対称は退屈なので 0.7 付近が最良）。C：ボックス次元（線と面の中庸 ≈ 1.7）。K：輪郭内の余白。候補 6 本から B 最大の木を描きます。</p>
+        <p>O：左右の鏡映の度合い（完全対称は退屈なので 0.76 付近が最良）。C：ボックス次元（≈ 1.79、密な針葉の面に近い線）。K：輪郭内の透け（≈ 9%、枝のあいだから空がのぞく程度）。候補 6 本から B 最大の木を描きます。</p>
       </div>
     </div>
   </section>
