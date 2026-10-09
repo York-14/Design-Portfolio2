@@ -12,6 +12,12 @@
 <script>
   // テーマの初期化（ちらつき防止のため head で実行）
   try { const t = localStorage.getItem("oc.theme"); if (t) document.documentElement.dataset.theme = t; } catch {}
+  // サイネージ表示：?signage（全画面の木だけ）。?theme=dark|light で配色を固定
+  try {
+    const q = new URLSearchParams(location.search);
+    if (q.has("signage")) document.documentElement.classList.add("signage");
+    const th = q.get("theme"); if (th === "dark" || th === "light") document.documentElement.dataset.theme = th;
+  } catch {}
 </script>
 </head>
 <body>
@@ -36,17 +42,19 @@
     <div class="hero-copy">
       <p class="eyebrow">York-14 — Design Portfolio 2026</p>
       <h1>秩序と混沌の<br>あいだで、<br>凛と育つ。</h1>
-      <p class="lead">Order &amp; Chaos. 黄金角と円錐の秩序に、カオス写像のゆらぎを少しだけ。<br class="pc">同じ木は二度と育たない。</p>
+      <p class="lead">Order &amp; Chaos. 黄金角と円錐の秩序に、カオス写像のゆらぎを。<br class="pc">80〜120 BPM の鼓動で、育ち、枯れ、散り、また育つ。</p>
     </div>
 
     <div class="hero-ctrl" role="group" aria-label="生成のコントロール">
       <label class="balance">
         <span>Order</span>
-        <input id="chaos" type="range" min="0" max="1" step="0.01" value="0.32" aria-label="秩序と混沌のバランス">
+        <input id="chaos" type="range" min="0" max="1" step="0.01" value="0.32" aria-label="揺れの中心（秩序と混沌のバランス）">
         <span>Chaos</span>
       </label>
       <button id="regrow" type="button">もう一度育てる</button>
-      <output id="readout" aria-live="polite"></output>
+      <button id="pause" type="button" aria-pressed="false">止める</button>
+      <p id="readout"><span id="beat" aria-hidden="true"></span><span id="bpm">growing</span></p>
+      <p id="dna"><span class="k">SEED</span><a id="seed" href="#"></a><span id="genome"></span><span id="score"></span></p>
     </div>
     <a class="scroll-cue" href="#concept" aria-label="下へスクロール"><span></span></a>
   </section>
@@ -100,24 +108,6 @@
         </div>
       </li>
       <li class="work">
-        <a class="thumb" href="https://york-14.github.io/Design-Portfolio-1/ivy-order-chaos/" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true"><canvas class="mini" data-kind="ivy"></canvas></a>
-        <div class="meta">
-          <p class="tag">Generative</p>
-          <h3><a href="https://york-14.github.io/Design-Portfolio-1/ivy-order-chaos/" target="_blank" rel="noopener">Beauty — Order × Chaos</a></h3>
-          <p>蔦と葉で描く対称カオス写像。秩序と混沌が 80–120 BPM の鼓動で呼吸し続ける。</p>
-          <p class="links"><a href="https://york-14.github.io/Design-Portfolio-1/ivy-order-chaos/" target="_blank" rel="noopener">Live ↗</a> <a href="https://github.com/York-14/Design-Portfolio-1" target="_blank" rel="noopener">GitHub ↗</a></p>
-        </div>
-      </li>
-      <li class="work">
-        <a class="thumb" href="https://york-14.github.io/Design-portfolio/" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true"><canvas class="mini" data-kind="bifurcation"></canvas></a>
-        <div class="meta">
-          <p class="tag">Motion</p>
-          <h3><a href="https://york-14.github.io/Design-portfolio/" target="_blank" rel="noopener">ORDER × CHAOS — Generative Motion Reel</a></h3>
-          <p>これまでの作品の数式をひとつの流れに編み直した 15 秒のリール。映像も音もすべてコードで生成。</p>
-          <p class="links"><a href="https://york-14.github.io/Design-portfolio/" target="_blank" rel="noopener">Live ↗</a> <a href="https://github.com/York-14/Design-portfolio" target="_blank" rel="noopener">GitHub ↗</a></p>
-        </div>
-      </li>
-      <li class="work">
         <a class="thumb" href="https://double-pendulum-bay.vercel.app" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true"><canvas class="mini" data-kind="pendulum"></canvas></a>
         <div class="meta">
           <p class="tag">Generative / Physics</p>
@@ -167,9 +157,19 @@
 
     <div class="eqs">
       <div class="eq">
+        <p class="eq-label">Seed → Genome</p>
+        <p class="formula">seed ∈ [0, 2<sup>32</sup>) → splitmix32 → (n, K, L<sub>0</sub>, p/q, α<sub>0</sub>, λ, Δ)</p>
+        <p>木が生まれるたびに 32 bit の seed をつくり、画面に表示します。seed をハッシュで展開して、1 段の枝数 n（4〜7）、段数 K（22〜30）、細さ L<sub>0</sub>、葉序 p/q、葉角 α<sub>0</sub>（40〜65°）、葉の長さ λ と間隔 Δ を決めます。カオス写像の初期値も seed から決まるので、同じ seed からはまったく同じ木が育ちます（表示された seed をクリックすると、その木を再現する URL になります）。</p>
+      </div>
+      <div class="eq">
+        <p class="eq-label">Leaves — 葉の数と向き</p>
+        <p class="formula">N = Σ ⌊ℓ·ρ / Δ⌋,&nbsp;&nbsp; d<sub>k</sub> = cos α<sub>k</sub> T + sin α<sub>k</sub> (cos ψ<sub>k</sub> N<sub>1</sub> + sin ψ<sub>k</sub> N<sub>2</sub>),&nbsp;&nbsp; ψ<sub>k</sub> = 2π k · p/q + c·ξ</p>
+        <p>葉の本数 N は、小枝の長さ ℓ を間隔 Δ で割って数えます。k 番目の葉は小枝の向き T のまわりを、Fibonacci 比 p/q（2/5, 3/8, 5/13, 8/21, 13/34 — 黄金角に収束する葉序）ずつ回りながら、小枝と角 α で開きます。混沌度 c が上がるほど、カオス写像のゆらぎ ξ が葉の回転と開きを乱します。</p>
+      </div>
+      <div class="eq">
         <p class="eq-label">Chaos source</p>
         <p class="formula">z<sub>t+1</sub> = (λ + α|z|² + β Re z<sup>n</sup>) z + γ z̄<sup> n−1</sup></p>
-        <p>Generative Flower の写像そのもの（λ = −2.34, α = 2, β = 0.2, γ = 0.1, n = 5）。軌道 z<sub>t</sub> / R を [−1, 1] のゆらぎ ξ として取り出します。</p>
+        <p>Generative Flower の写像そのもの（λ = −2.34, α = 2, β = 0.2, γ = 0.1, n = 5）。初期値 z<sub>0</sub> を seed から決め、軌道 z<sub>t</sub> / R を [−1, 1] のゆらぎ ξ として取り出します。</p>
       </div>
       <div class="eq">
         <p class="eq-label">Order — 節間と葉序</p>
@@ -187,9 +187,24 @@
         <p>成長前線が根元から梢へ上がり、通過した段から枝が伸び始めます。下の枝ほど長く伸び続けるので、時間差がそのまま円錐の形になります。</p>
       </div>
       <div class="eq">
+        <p class="eq-label">Rhythm — 緊張と緩和</p>
+        <p class="formula">BPM(t) = 100 − 20 cos(2πt / 24),&nbsp;&nbsp; c(t) = c<sub>0</sub> + 0.5 (τ − 0.4) + 0.16 · beat · (0.35 + 0.65 τ)</p>
+        <p>テンポは 24 秒かけて 80 → 120 → 80 BPM を往復します。速くなるほど緊張 τ が高まり、木は混沌へ。遅くなるほど緩和され、秩序へ還ります。拍ごとに一瞬だけ混沌側へ振れ、ゆっくり戻る「ドクン」が重なります。木の各点は秩序の姿と混沌の姿の 2 つの座標を持ち、毎フレームその間を c で補間しています。</p>
+      </div>
+      <div class="eq">
+        <p class="eq-label">Life cycle — 変速</p>
+        <p class="formula">dL/dt = (BPM / 100)<sup>1.6</sup> · (1 + 0.55 · beat),&nbsp;&nbsp; 育つ → 呼吸 → 枯れる → 散る → 眠る</p>
+        <p>一本ずつが「生命の時計」L を持ち、その進む速さは鼓動で変わります。テンポが速いと季節は早く巡り、遅いとゆっくり。拍の瞬間には一歩ぶん押し出されます。枯れる相では梢と枝先から緑が抜けて乾いた色になり、自重で垂れ、秩序がほどけていきます。散る相では枯れた順に枝を離れ、半分は宙で風化し、残りは風に揺れながら落ちて地面に積もり、土に還ります。眠りのあいだに新しい seed の木が Beauty で選ばれ、また育ちます。遠景の木は呼吸の長さが一本ずつ違うので、森の周期は少しずつずれていきます。</p>
+      </div>
+      <div class="eq">
+        <p class="eq-label">Light — 光と色</p>
+        <p class="formula">C = mix(古い葉, 新芽, f<sub>tip</sub>) · AO · (0.12 + 0.98 · max(0, n·L))</p>
+        <p>葉の 1 本ずつに色を持たせ、左上の太陽 L に対する樹冠の面の向き n で明るさを決めます。樹冠の内側と奥ほど暗くなり（AO）、枝先 f<sub>tip</sub> には明るい新芽が出ます。葉の色味（青みのトウヒ〜黄みのモミ）も seed から決まります。遠景の木は霞の色へ溶けていきます。</p>
+      </div>
+      <div class="eq">
         <p class="eq-label">Beauty</p>
         <p class="formula">B = O · C · K</p>
-        <p>O：左右の鏡映の度合い（完全対称は退屈なので 0.7 付近が最良）。C：ボックス次元（線と面の中庸 ≈ 1.7）。K：輪郭内の余白。候補 6 本から B 最大の木を描きます。</p>
+        <p>O：左右の鏡映の度合い（完全対称は退屈なので 0.76 付近が最良）。C：ボックス次元（≈ 1.79、密な針葉の面に近い線）。K：輪郭内の透け（≈ 9%、枝のあいだから空がのぞく程度）。候補 6 本から B 最大の木を描きます。</p>
       </div>
     </div>
   </section>

@@ -8,9 +8,18 @@
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // ---------------------------------------------------------------- palette
+  // stops：作品サムネイルの単色。sky / ground / fog / dry：キービジュアルの空・地面・霞・枯れ色
   const PALETTES = {
-    light: { bg: "#f2f0e9", stops: ["#f2f0e9", "#a9b2a6", "#3d4d43", "#121b16"] },
-    dark:  { bg: "#0d1210", stops: ["#0d1210", "#34453b", "#9fb5a8", "#eef4ef"] },
+    light: {
+      bg: "#f2f0e9", stops: ["#f2f0e9", "#a9b2a6", "#3d4d43", "#121b16"],
+      sky: ["#dfe5e3", "#f1f1eb"], ground: "#e7e3d7", floor: "#b9b8a4", fog: "#e1e5df",
+      dry: "#a8875c", dryDark: "#4f3b28", gain: 1, lift: 0,
+    },
+    dark: {
+      bg: "#0d1210", stops: ["#0d1210", "#34453b", "#9fb5a8", "#eef4ef"],
+      sky: ["#070b0d", "#1a2420"], ground: "#121813", floor: "#0a0e0b", fog: "#26312d",
+      dry: "#8a6f4e", dryDark: "#3a2c1f", gain: 1.08, lift: 4,
+    },
   };
   const isDark = () => {
     const t = document.documentElement.dataset.theme;
@@ -28,6 +37,11 @@
   });
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", repaintAll);
 
+  // ヘッダーの地色はスクロールしてから（キービジュアルの空を切らない）
+  const header = $(".site-header");
+  const onScroll = () => header.classList.toggle("scrolled", scrollY > 40);
+  addEventListener("scroll", onScroll, { passive: true }); onScroll();
+
   // 小さな決定論的乱数（森の配置用）
   const rng = seed => () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
 
@@ -40,69 +54,120 @@
 
   // ================================================================ hero
   const canvas = $("#forest"), slider = $("#chaos"), readout = $("#readout");
+  const SIGNAGE = document.documentElement.classList.contains("signage");
   const hero = Conifer.createScene(canvas);
   hero.setPalette(palette());
   scenes.push(hero);
-  let seed = 1 + Math.floor(Math.random() * 9000);
-  let best = null;
+  // 木ごとの seed（32 bit）。?seed=0x… を付けると、その木をそのまま再現する
+  const urlSeed = (() => { try { const v = new URLSearchParams(location.search).get("seed"); return v ? parseInt(v, v.startsWith("0x") ? 16 : 10) >>> 0 : null; } catch { return null; } })();
+  let seed = urlSeed ?? Conifer.randomSeed(), exact = urlSeed != null;
 
   function heroTrees(W, H) {
     const chaos = +slider.value;
     const wide = W / H > 0.9;
-    const main = {
-      cx: W * (wide ? 0.68 : 0.64),
-      cy: H * (wide ? 0.93 : 0.86),
-      scale: H * (wide ? 0.8 : 0.6),
-    };
+    const main = SIGNAGE
+      ? { cx: W * 0.5, cy: H * 0.94, scale: H * 0.84 }
+      : { cx: W * (wide ? 0.68 : 0.64), cy: H * (wide ? 0.93 : 0.86), scale: H * (wide ? 0.8 : 0.6) };
+    hero.setGround(main.cy);
     const px = W * H;
-    best = Conifer.selectBest({ seed, chaos });
     const list = [];
     // 遠景の森：小さく、淡く、少し早く育つ
     const R = rng(seed * 31 + 7);
-    const n = wide ? 8 : 5;
-    const x0 = wide ? 0.4 : 0.02;                                  // 左側はコピーのために空ける
+    const n = SIGNAGE ? (wide ? 12 : 6) : wide ? 8 : 5;
+    const x0 = SIGNAGE || !wide ? -0.02 : 0.4;                     // 左側はコピーのために空ける（サイネージは全幅）
     const far = [];
     for (let i = 0; i < n; i++) far.push({ depth: R(), slot: (i + 0.2 + R() * 0.6) / n });
     far.sort((a, b) => a.depth - b.depth);                         // 遠いものから
     for (const { depth, slot } of far) {
       const k = 0.22 + 0.38 * depth;                               // 近いほど大きい
       list.push({
-        opt: { seed: seed * 13 + Math.round(slot * 997), chaos, growTime: 4.2 + R() * 1.6, tiers: 20 },
+        opt: { seed: (Math.imul(seed, 13) + Math.round(slot * 997)) >>> 0, chaos, growTime: 4.2 + R() * 1.6, tiers: 20 },
         view: {
           cx: W * (x0 + (1.04 - x0) * slot), cy: main.cy - H * 0.05 * (1 - depth),
           scale: main.scale * k, rot: R() * 6.28, fog: 0.78 - 0.4 * depth,
         },
-        weight: 0.8, budget: px * 0.5 * k * k * 2.2, delay: 0.1 + R() * 0.8,
+        weight: 0.8, budget: px * 0.32 * k * k * 2.2, delay: 0.1 + R() * 0.8,
+        mature: 10 + R() * 12,                                     // 呼吸の長さを木ごとに変えて、森の周期をずらす
       });
     }
-    list.push({
-      opt: { seed: best.seed, chaos },
-      view: { ...main, rot: 0 },
-      weight: 1, budget: px * 1.25, delay: 0,
-    });
+    const mainSpec = { view: { ...main, rot: 0 }, weight: 1, budget: px * 0.75, delay: 0, mature: 16 };
+    // 主木の seed：初回は今の seed（?seed= ならそのまま）、散って眠るたびに新しい seed を Beauty で選び直す
+    let first = true;
+    mainSpec.renew = function* () {
+      const b = yield* Conifer.selectBestGen(first ? { seed, chaos: +slider.value, exact } : { seed: Conifer.randomSeed(), chaos: +slider.value });
+      first = false;
+      return { ...mainSpec, opt: { seed: b.seed, chaos: +slider.value }, meta: { seed: b.seed, score: b.score } };
+    };
+    list.push(mainSpec);
     return list;
   }
 
-  function showReadout() {
-    if (!best) return;
-    const s = best.score, f = v => v.toFixed(2);
-    readout.textContent = `No.${String(seed).padStart(4, "0")}  c=${f(+slider.value)}  ` +
-      `O ${f(s.O)} × C ${f(s.C)} × K ${f(s.K)} = B ${f(s.B)}`;
+  // ---- 鼓動：80 ↔ 120 BPM の可変テンポで、緊張（混沌）と緩和（秩序）を繰り返す ----
+  //   dc   … 呼吸の混沌度の揺れ（緊張で混沌へ、緩和で秩序へ、拍ごとに一瞬振れる）
+  //   rate … 生命の時計の速さ（テンポが速いほど、拍の瞬間ほど速く進む＝変速）
+  const seedEl = $("#seed"), genomeEl = $("#genome");
+  const bpmEl = $("#bpm"), beatEl = $("#beat"), scoreEl = $("#score"), pauseBtn = $("#pause");
+  const PHASE = { grow: "育つ", breathe: "呼吸", wither: "枯れる", fall: "散る", rest: "眠る" };
+  let paused = false, visible = true, lastText = -1, shown = null;
+
+  function clock(T) {
+    const p = Conifer.pulse(T);
+    const dc = 0.5 * (p.tension - 0.4) + 0.16 * p.beat * (0.35 + 0.65 * p.tension);
+    const rate = Math.pow(p.bpm / 100, 1.6) * (1 + 0.55 * p.beat);
+    beatEl.style.opacity = (0.2 + 0.8 * p.beat).toFixed(3);
+    beatEl.style.transform = `scale(${(1 + 0.6 * p.beat).toFixed(3)})`;
+    if (T - lastText > 0.2 || T < lastText) {
+      lastText = T;
+      bpmEl.textContent = `${Math.round(p.bpm)} BPM · ${PHASE[hero.status()] || ""}`;
+      showReadout();
+    }
+    return { dc, rate };
   }
 
-  function buildHero(animate) {
-    const [W, H] = fitCanvas(canvas, 2.4e6);
+  function showReadout() {
+    const cl = hero.clouds[hero.clouds.length - 1];
+    if (!cl || !cl.pts || cl.spec.meta === shown) return;
+    shown = cl.spec.meta;
+    const s = shown.score, f = v => v.toFixed(2), G = Conifer.genome(shown.seed), hex = Conifer.seedHex(shown.seed);
+    seedEl.textContent = hex;
+    seedEl.href = `?seed=${hex}`;
+    seedEl.title = "この木を再現する URL";
+    genomeEl.textContent = `葉 ${cl.pts.leaves.toLocaleString("en-US")} 本 · 枝 n=${G.whorl} × ${G.tiers} 段 · 葉序 ${G.phyllo[0]}/${G.phyllo[1]} · 葉角 ${Math.round(G.leafAngle * 180 / Math.PI)}°`;
+    scoreEl.textContent = `O ${f(s.O)} × C ${f(s.C)} × K ${f(s.K)} = B ${f(s.B)}`;
+  }
+
+  function run() {
+    if (reduceMotion) { hero.still(); bpmEl.textContent = "still"; showReadout(); return; }
+    if (paused || !visible) hero.stop(); else hero.play(clock);
+  }
+
+  function buildHero(regrow) {
+    const [W, H] = fitCanvas(canvas, SIGNAGE ? 4e6 : 1.5e6);
     hero.resize(W, H);
-    hero.setTrees(heroTrees(W, H));
-    showReadout();
-    if (animate && !reduceMotion) hero.grow(); else hero.instant();
+    hero.setTrees(heroTrees(W, H), [0, 1], { mature: !regrow });
+    shown = null; showReadout();
+    run();
   }
 
   $("#regrow").addEventListener("click", () => {
-    seed = 1 + Math.floor(Math.random() * 9000);
+    seed = Conifer.randomSeed(); exact = false;
     buildHero(true);
   });
-  slider.addEventListener("change", () => buildHero(true));
+  slider.addEventListener("change", () => buildHero(false));
+
+  pauseBtn.hidden = reduceMotion;
+  pauseBtn.addEventListener("click", () => {
+    paused = !paused;
+    pauseBtn.textContent = paused ? "動かす" : "止める";
+    pauseBtn.setAttribute("aria-pressed", String(paused));
+    run();
+  });
+  // 画面外・非表示のタブでは止める（再開時は同じ生命の時刻から）
+  new IntersectionObserver(([e]) => {
+    if (e.isIntersecting === visible) return;
+    visible = e.isIntersecting; run();
+  }).observe(canvas);
+  document.addEventListener("visibilitychange", () => { visible = !document.hidden; run(); });
 
   let lastW = 0, lastH = 0, rt = 0;
   window.addEventListener("resize", () => {
@@ -117,6 +182,17 @@
   });
   lastW = innerWidth; lastH = innerHeight;
   buildHero(true);
+
+  // サイネージ：ダブルクリック / F キーで全画面、操作がないとカーソルを隠す
+  if (SIGNAGE) {
+    const fs = () => { try { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(); } catch {} };
+    canvas.addEventListener("dblclick", fs);
+    addEventListener("keydown", e => { if (e.key === "f" || e.key === "F") fs(); });
+    let idle = 0;
+    const wake = () => { document.documentElement.classList.remove("idle"); clearTimeout(idle); idle = setTimeout(() => document.documentElement.classList.add("idle"), 2500); };
+    addEventListener("pointermove", wake); wake();
+    try { navigator.wakeLock && navigator.wakeLock.request("screen").catch(() => {}); } catch {}
+  }
 
   // ================================================================ works thumbnails
   // 各作品の数理モデルを、サイトの配色で小さく描く
